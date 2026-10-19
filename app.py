@@ -1,28 +1,17 @@
 import os
 
-from flask import Flask, Blueprint, jsonify, render_template, request
-
-
-from routes.auth import auth_bp
-
 from dotenv import load_dotenv
 
-
-app = Flask(__name__)
 load_dotenv()
 
+from app import create_app
+from app.models import Role
 
+app = create_app()
 
-app.register_blueprint(auth_bp, url_prefix='/auth')
-
-
-@app.route('/')
-def hello_world():
-   return render_template('index.html')
-
-
+with app.app_context():
+    Role.add_default_roles()
 
 if __name__ == '__main__':
-    
     port = int(os.getenv('FLASK_PORT', '4030'))
     app.run(host='0.0.0.0', port=port, debug=True)
