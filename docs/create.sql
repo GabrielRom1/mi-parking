@@ -20,9 +20,10 @@ CREATE TABLE lots(
 	is_active TINYINT DEFAULT 1,
 	parent_id int NULL,
 	accessible TINYINT DEFAULT 0,
+	role_id int NULL,
+	FOREIGN KEY (role_id) REFERENCES roles(id),
 	FOREIGN KEY (parent_id) REFERENCES lots(id)
 );
-
 
 
 CREATE TABLE roles(
@@ -30,26 +31,6 @@ CREATE TABLE roles(
 	name varchar(20) NOT NULL UNIQUE,
 	description TEXT NULL
 );
-
-
-CREATE TABLE user_roles(
-	id int AUTO_INCREMENT PRIMARY KEY,
-	user_id int NOT NULL, 
-	role_id int NOT NULL,
-	FOREIGN KEY (user_id) REFERENCES users(id),
-	FOREIGN KEY (role_id) REFERENCES roles(id)
-);
-
-
-
-CREATE TABLE lot_roles(
-	id int AUTO_INCREMENT PRIMARY KEY,
-	lot_id int NOT NULL, 
-	role_id int NOT NULL,
-	FOREIGN KEY (lot_id) REFERENCES lots(id),
-	FOREIGN KEY (role_id) REFERENCES roles(id)
-);
-
 
 
 CREATE TABLE spots(
