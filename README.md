@@ -25,3 +25,6 @@ https://www.codewithharry.com/blogpost/using-tailwind-with-flask
 
 seguí esto para la db
 https://oneuptime.com/blog/post/2026-02-02-sqlite-flask/view
+
+
+para "compilar" css: npm run build:css
