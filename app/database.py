@@ -9,3 +9,4 @@ def init_db(app):
 
     with app.app_context():
         db.create_all()
+        models.Role.add_default_roles()
