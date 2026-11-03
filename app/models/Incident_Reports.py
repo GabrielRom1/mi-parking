@@ -16,8 +16,8 @@ class IncidentReport(db.Model):
 	reservation_id = db.Column(db.Integer, db.ForeignKey('reservations.id'), nullable=False, unique=True)
 	reservation = db.relationship('Reservation', back_populates='incident_report', uselist=False)
 
-	# description TEXT NULL,
-	description = db.Column(db.Text, nullable=True)
+	# description varchar(500) NULL,
+	description = db.Column(db.String(500), nullable=True)
 
 	# photo_path varchar(255) NULL,
 	photo_path = db.Column(db.String(255), nullable=True)
@@ -28,6 +28,7 @@ class IncidentReport(db.Model):
 	# status ENUM('Open', 'In Progress', 'Resolved') NOT NULL DEFAULT 'Open',
 	status = db.Column(db.Enum('Open', 'In Progress', 'Resolved'), nullable=False)
 
-	admin_notes = db.Column(db.Text, nullable=True)
+	# admin_notes varchar(500) NULL,
+	admin_notes = db.Column(db.String(500), nullable=True)
 
  

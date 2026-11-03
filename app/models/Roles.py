@@ -10,8 +10,8 @@ class Role(db.Model):
 	# 	name varchar(20) NOT NULL UNIQUE,
 	name = db.Column(db.String(20), unique=True, nullable=False)
 
-	# 	description TEXT NULL
-	description = db.Column(db.Text, nullable=True)
+	# 	description varchar(500) NULL
+	description = db.Column(db.String(500), nullable=True)
 
 	users = db.relationship('User', back_populates='role', lazy=True)
 	lots = db.relationship('Lots', back_populates='role', lazy=True)
@@ -21,7 +21,7 @@ class Role(db.Model):
 	def add_default_roles(cls):
 		default_roles = {
 			'admin': 'Tiene acceso completo a la administración del sistema y puede reservar en todos los lotes?',
-			'usuario': '?',
+			'estudiante': '?',
 			'empleado': '?',
 		}
 		existing_roles = {

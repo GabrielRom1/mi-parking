@@ -7,14 +7,14 @@ class User(db.Model):
 	# 	id int AUTO_INCREMENT PRIMARY KEY,
 	id = db.Column(db.Integer, primary_key=True)
 
-	# 	email varchar(255) NOT NULL UNIQUE,
-	email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+	# 	email varchar(320)) NOT NULL UNIQUE,
+	email = db.Column(db.String(320), unique=True, nullable=False, index=True)
 
-	# 	first_name varchar(255) NOT NULL,
-	first_name = db.Column(db.String(255), nullable=False)
+	# 	first_name varchar(100) NOT NULL,
+	first_name = db.Column(db.String(100), nullable=False)
 
-	# 	last_name varchar(255) NOT NULL,
-	last_name = db.Column(db.String(255), nullable=False)
+	# 	last_name varchar(100) NOT NULL,
+	last_name = db.Column(db.String(100), nullable=False)
 
 	# 	password_hash varchar(255) NOT NULL,
 	password_hash = db.Column(db.String(255), nullable=False)
