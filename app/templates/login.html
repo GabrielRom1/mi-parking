@@ -1,10 +1,40 @@
 {% extends "base.html" %}
 
-{% block title %} Login - Mi-Parking{% endblock %}
-{% block head %}
-
-{% endblock %}
+{% block title %}Login - Mi-Parking{% endblock %}
 
 {% block body %}
-	<h1 class="text-center ">Login :)</h1>
+	<main class="grid min-h-screen place-items-center px-5 py-8">
+		<section class="w-full max-w-[420px] rounded-[20px] border border-ink/10 bg-paper p-6 shadow-[0_24px_70px_rgb(38_28_2_/_0.10)] sm:p-10" aria-labelledby="login-title">
+
+			<p class="mb-2 text-xs font-bold tracking-[0.12em] text-brand uppercase">Mi-Parking</p>
+			<h1 class="text-[clamp(1.8rem,6vw,2.15rem)] leading-tight font-bold tracking-[-0.045em]" id="login-title">Inicio de sesión</h1>
+			<p class="mt-3 mb-8 text-[0.95rem] leading-relaxed text-ink/65">Inicia sesión para gestionar tus reservaciones de estacionamiento.</p>
+
+			<form class="grid gap-5" method="post">
+				{{ form.hidden_tag() }}
+				{% for error in form.csrf_token.errors %}
+					<p class="text-sm text-red-700" role="alert">{{ error }}</p>
+				{% endfor %}
+				<div class="grid gap-2">
+					{{ form.email.label(class_="text-sm font-semibold") }}
+					{{ form.email(class_="min-h-12 w-full rounded-[10px] border border-cool-gray bg-paper px-3.5 text-[0.95rem] outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15", autocomplete="email", placeholder="tu@correo.com") }}
+					{% for error in form.email.errors %}
+						<p class="text-sm text-red-700" role="alert">{{ error }}</p>
+					{% endfor %}
+				</div>
+
+				<div class="grid gap-2">
+					{{ form.password.label(class_="text-sm font-semibold") }}
+					{{ form.password(class_="min-h-12 w-full rounded-[10px] border border-cool-gray bg-paper px-3.5 text-[0.95rem] outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15", autocomplete="current-password", placeholder="Ingresa tu contraseña") }}
+					{% for error in form.password.errors %}
+						<p class="text-sm text-red-700" role="alert">{{ error }}</p>
+					{% endfor %}
+				</div>
+
+				<button class="mt-1 min-h-[50px] cursor-pointer rounded-[10px] bg-brand text-[0.95rem] font-bold text-paper transition hover:bg-[#c9002d] active:translate-y-px focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-brand/30" type="submit">Iniciar sesión</button>
+			</form>
+
+			<p class="mt-7 text-center text-[0.84rem] leading-relaxed text-ink/65">¿No tienes una cuenta? <a class="text-brand underline hover:no-underline" href="{{ url_for('auth_bp.register') }}">Regístrate aquí</a></p>
+		</section>
+	</main>
 {% endblock %}

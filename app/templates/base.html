@@ -1,12 +1,23 @@
 <!DOCTYPE html>
 <html>
 	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
 		{% block head %}
 		<title>{% block title %}{% endblock %}</title>
 		{% endblock %}
 		<link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
 	</head>
-	<body>
+	<body class="min-h-screen bg-cream-light font-sans text-ink">
+	{% with messages = get_flashed_messages(with_categories=true) %}
+		{% if messages %}
+			<div class="mx-auto max-w-3xl px-5 pt-5" role="status">
+				{% for category, message in messages %}
+					<p class="rounded-lg border border-ink/10 bg-paper px-4 py-3 text-sm">{{ message }}</p>
+				{% endfor %}
+			</div>
+		{% endif %}
+	{% endwith %}
 	{% block body %}{% endblock %}
 	</body>
 </html>
