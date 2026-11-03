@@ -26,3 +26,29 @@ class User(db.Model):
 	# 	FOREIGN KEY (role_id) REFERENCES roles(id)
 	role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
 	role = db.relationship('Role', back_populates='users')
+
+	@classmethod
+	def get_user_by_email(cls, email):
+		normalized_email = email.strip().lower()
+		return cls.query.filter(
+			db.func.lower(cls.email) == normalized_email
+		).first()
+
+	@classmethod
+	def create_user(
+		cls,
+		email,
+		first_name,
+		last_name,
+		password_hash,
+		requires_accessible_spot,
+		role,
+	):
+		return cls(
+			email=email.strip().lower(),
+			first_name=first_name.strip(),
+			last_name=last_name.strip(),
+			password_hash=password_hash,
+			requires_accessible_spot=requires_accessible_spot,
+			role=role,
+		)
