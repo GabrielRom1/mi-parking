@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import PasswordField, StringField
-from wtforms.validators import DataRequired, Email, Length
+from wtforms.validators import DataRequired, Email, Length, Regexp
 
 
 class LoginForm(FlaskForm):
@@ -10,5 +10,15 @@ class LoginForm(FlaskForm):
     )
     password = PasswordField(
         "Contraseña",
-        validators=[DataRequired(), Length(max=128)],
+        validators=[
+            DataRequired(),
+            Length(min=8, max=128),
+            Regexp(
+                r"(?=.*[A-Z])(?=.*[0-9])(?=.*[?!#$&]).{8,}",
+                message=(
+                    "La contraseña debe tener al menos 8 caracteres, una mayúscula, un número "
+                    "y uno de estos símbolos: ?, !, #, $ o &."
+                ),
+            ),
+        ],
     )
