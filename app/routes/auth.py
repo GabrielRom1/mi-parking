@@ -24,6 +24,7 @@ def login():
             form.password.errors.append("Correo o contraseña incorrectos.")
         else:
             session.clear()
+            session.permanent = True
             session['user_id'] = user.id
             return redirect(url_for('public.hello_world'))
 
@@ -57,3 +58,8 @@ def register():
         return redirect(url_for('auth_bp.login'))
 
     return render_template('register.html', form=form)
+
+@auth_bp.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('auth_bp.login'))
