@@ -13,6 +13,7 @@ auth_bp = Blueprint('auth_bp', __name__)
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     form = LoginForm()
+    credentials_error = False
 
     if form.validate_on_submit():
         email = form.email.data.strip().lower()
@@ -21,14 +22,18 @@ def login():
             user.password_hash, form.password.data
         )
         if not password_matches:
-            form.password.errors.append("Correo o contraseña incorrectos.")
+            credentials_error = True
         else:
             session.clear()
             session.permanent = True
             session['user_id'] = user.id
             return redirect(url_for('public.hello_world'))
 
-    return render_template('login.html', form=form)
+    return render_template(
+        'login.html',
+        form=form,
+        credentials_error=credentials_error,
+    )
 
 
 @auth_bp.route('/register', methods=['GET', 'POST'])

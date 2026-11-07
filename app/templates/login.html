@@ -3,8 +3,8 @@
 {% block title %}Login - Mi-Parking{% endblock %}
 
 {% block body %}
-	<main class="grid min-h-screen place-items-center px-5 py-8">
-		<section class="w-full max-w-[420px] rounded-[20px] border border-ink/10 bg-paper p-6 shadow-[0_24px_70px_rgb(38_28_2_/_0.10)] sm:p-10" aria-labelledby="login-title">
+	<main class="grid min-h-screen place-items-center border-t-[3px] border-brand bg-[#f4f4f5] px-5 py-8">
+		<section class="w-full max-w-[420px] rounded-2xl border border-[#e5e5e5] bg-white p-6 shadow-[0_24px_70px_rgb(38_28_2/0.18)] sm:p-10" aria-labelledby="login-title">
 
 			<p class="mb-2 text-xs font-bold tracking-[0.12em] text-brand uppercase">Mi-Parking</p>
 			<h1 class="text-[clamp(1.8rem,6vw,2.15rem)] leading-tight font-bold tracking-[-0.045em]" id="login-title">Inicio de sesión</h1>
@@ -15,9 +15,19 @@
 				{% for error in form.csrf_token.errors %}
 					<p class="text-sm text-red-700" role="alert">{{ error }}</p>
 				{% endfor %}
+				{% if credentials_error %}
+					<div class="flex items-center gap-4 rounded-[10px] border border-[#b00020] bg-[#fff0f2] px-4 py-4 text-[#b00020]" role="alert">
+						<svg class="size-6 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+							<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"></circle>
+							<path d="M12 7.5v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+							<circle cx="12" cy="16.5" r="1" fill="currentColor"></circle>
+						</svg>
+						<p class="font-semibold">Correo electrónico o contraseña incorrectos.</p>
+					</div>
+				{% endif %}
 				<div class="grid gap-2">
 					{{ form.email.label(class_="text-sm font-semibold") }}
-					{{ form.email(class_="min-h-12 w-full rounded-[10px] border border-cool-gray bg-paper px-3.5 text-[0.95rem] outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15", autocomplete="email", placeholder="tu@correo.com") }}
+					{{ form.email(class_="min-h-12 w-full rounded-[10px] border bg-white px-3.5 text-[0.95rem] outline-none transition focus:ring-4 focus:ring-brand/15 " ~ ("border-[#b00020] focus:border-[#b00020]" if credentials_error else "border-cool-gray focus:border-brand"), autocomplete="email", placeholder="tu@correo.com") }}
 					{% for error in form.email.errors %}
 						<p class="text-sm text-red-700" role="alert">{{ error }}</p>
 					{% endfor %}
@@ -25,7 +35,7 @@
 
 				<div class="grid gap-2">
 					{{ form.password.label(class_="text-sm font-semibold") }}
-					{{ form.password(class_="min-h-12 w-full rounded-[10px] border border-cool-gray bg-paper px-3.5 text-[0.95rem] outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15", autocomplete="current-password", placeholder="Ingresa tu contraseña") }}
+					{{ form.password(class_="min-h-12 w-full rounded-[10px] border bg-white px-3.5 text-[0.95rem] outline-none transition focus:ring-4 focus:ring-brand/15 " ~ ("border-[#b00020] focus:border-[#b00020]" if credentials_error else "border-cool-gray focus:border-brand"), autocomplete="current-password", placeholder="Ingresa tu contraseña") }}
 					{% for error in form.password.errors %}
 						<p class="text-sm text-red-700" role="alert">{{ error }}</p>
 					{% endfor %}
