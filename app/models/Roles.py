@@ -20,9 +20,9 @@ class Role(db.Model):
 	@classmethod
 	def add_default_roles(cls):
 		default_roles = {
-			'admin': 'Tiene acceso completo a la administración del sistema y puede reservar en todos los lotes?',
-			'estudiante': '?',
-			'empleado': '?',
+			'admin': 'Tiene acceso a la administración del sistema y puede reservar en todos los lotes.',
+			'estudiante': 'Usuario con rol de estudiante.',
+			'empleado': 'Usuario con rol de empleado.',
 		}
 		existing_roles = {
 			role.name: role
@@ -33,7 +33,7 @@ class Role(db.Model):
 			role = existing_roles.get(name)
 			if role is None:
 				db.session.add(cls(name=name, description=description))
-			elif role.description is None:
+			elif role.description != description:
 				role.description = description
 
 		db.session.commit()

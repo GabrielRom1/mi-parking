@@ -18,7 +18,7 @@ def create_app(config_class=Config):
 
     os.makedirs(app.instance_path, exist_ok=True)
     bcrypt.init_app(app)
-    init_db(app)
+    init_db(app, bcrypt)
 
     from app.routes.auth import auth_bp
     from app.routes.public import public_bp

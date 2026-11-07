@@ -6,7 +6,13 @@ from wtforms.validators import DataRequired, Email, Length, Regexp
 class LoginForm(FlaskForm):
     email = StringField(
         "Correo electrónico",
-        validators=[DataRequired(), Email(), Length(max=320)],
+        validators=[
+            DataRequired(),
+            Email(
+                message="Introduce un correo electrónico válido.",
+            ),
+            Length(max=320),
+        ],
     )
     password = PasswordField(
         "Contraseña",
