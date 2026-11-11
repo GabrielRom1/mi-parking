@@ -1,0 +1,24 @@
+{# One cell per time slot of a day. `timeline` comes from services.reservations.day_timeline. #}
+{% set slot_classes = {
+	'free': 'bg-green-500',
+	'reserved': 'bg-brand/70',
+	'past': 'bg-gray-200',
+	'beyond': 'border border-dashed border-gray-300 bg-white',
+} %}
+{% set slot_labels = {'free': 'libre', 'reserved': 'reservado', 'past': 'pasado', 'beyond': 'fuera del periodo de reservación'} %}
+
+{% macro timeline_bar(timeline, class='h-2') -%}
+	<div class="flex gap-px {{ class }}">
+		{% for slot in timeline %}
+			<span class="flex-1 first:rounded-l-sm last:rounded-r-sm {{ slot_classes[slot.state] }}" title="{{ slot.start | hora }} – {{ slot.end | hora }}: {{ slot_labels[slot.state] }}"></span>
+		{% endfor %}
+	</div>
+{%- endmacro %}
+
+{% macro timeline_legend() -%}
+	<ul class="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-ink/70">
+		{% for state in ('free', 'reserved', 'past', 'beyond') %}
+			<li class="flex items-center gap-1.5"><span class="size-3 rounded-sm {{ slot_classes[state] }}"></span>{{ slot_labels[state] | capitalize }}</li>
+		{% endfor %}
+	</ul>
+{%- endmacro %}

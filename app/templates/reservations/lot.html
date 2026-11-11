@@ -1,0 +1,61 @@
+{% extends "reservations/layout.html" %}
+{% from 'reservations/include/icons.html' import icon %}
+{% from 'reservations/include/timeline.html' import timeline_bar, timeline_legend %}
+
+{% set active_nav = 'reserve' %}
+{% set state_styles = {
+	'available': ('Disponible ahora', 'bg-green-50 text-green-800'),
+	'reserved': ('Reservado ahora', 'bg-red-50 text-brand'),
+	'full': ('Sin horarios libres hoy', 'bg-gray-100 text-ink/70'),
+} %}
+
+{% block title %}{{ lot.name }} - MiParking{% endblock %}
+
+{% block content %}
+	<a href="{{ url_for('reservations.index') }}" class="inline-flex w-fit items-center gap-1.5 text-[14px] font-semibold text-ink/70 hover:text-ink">{{ icon('arrow-left') }}Todos los lotes</a>
+
+	<div class="flex flex-col gap-1.5">
+		<div class="flex flex-wrap items-center gap-2">
+			<h1 class="font-['Barlow_Semi_Condensed',sans-serif] text-[36px] leading-10 font-semibold">{{ lot.name }}</h1>
+			<span class="rounded-full bg-gray-100 px-2 py-0.5 text-[13px] font-semibold text-ink/70">{{ 'Pago' if lot.is_paid else 'Gratis' }}</span>
+		</div>
+		<p class="flex items-center gap-1.5 text-ink/70">{{ icon('map-pin', 'size-3.5') }}{{ lot.location }}</p>
+	</div>
+
+	{% if not lot_active %}
+		<p role="status" class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-100 px-4 py-3 font-semibold text-ink/70">{{ icon('alert-circle') }}Este lote está inactivo y no acepta reservaciones.</p>
+	{% endif %}
+
+	<div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
+		<p class="text-[14px]"><span class="font-semibold">Hoy, {{ current | fecha }}</span> · de {{ config.RESERVATION_OPENING_HOUR }}:00 a {{ config.RESERVATION_CLOSING_HOUR }}:00</p>
+		{{ timeline_legend() }}
+	</div>
+
+	{% for area in areas %}
+		<section class="flex flex-col gap-3" aria-labelledby="area-{{ loop.index }}">
+			<h2 id="area-{{ loop.index }}" class="text-[17px] font-semibold">{{ area.name }} <span class="font-normal text-ink/60">· {{ area.spots | length }} espacios</span></h2>
+			<ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+				{% for spot in area.spots %}
+					{% set label, badge = state_styles[spot.state] %}
+					<li class="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4">
+						<div class="flex items-start justify-between gap-2">
+							<p class="flex items-center gap-1.5 font-semibold">
+								Espacio {{ spot.number }}
+								{% if spot.is_accessible %}<span class="text-blue-700" title="Espacio accesible">{{ icon('accessibility') }}<span class="sr-only">(accesible)</span></span>{% endif %}
+							</p>
+							<span class="rounded-full px-2 py-0.5 text-[13px] font-semibold {{ badge }}">{{ label }}</span>
+						</div>
+						{{ timeline_bar(spot.timeline) }}
+						{% if not lot_active %}
+							<span aria-disabled="true" class="inline-flex h-9 cursor-not-allowed items-center justify-center rounded-lg border border-gray-300 text-[14px] font-semibold text-ink/40">Reservar</span>
+						{% elif not spot.reservable %}
+							<span aria-disabled="true" class="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 px-2 text-center text-[13px] font-semibold text-ink/50">Solo para quien necesita espacio accesible</span>
+						{% else %}
+							<a href="{{ url_for('reservations.new', spot_id=spot.id) }}" class="inline-flex h-9 items-center justify-center rounded-lg bg-brand text-[14px] font-semibold text-white transition hover:bg-[#c8002c] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-brand/30">Reservar</a>
+						{% endif %}
+					</li>
+				{% endfor %}
+			</ul>
+		</section>
+	{% endfor %}
+{% endblock %}

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="es">
+	<body style="margin:0;background:#f5f5f6;font-family:Arial,Helvetica,sans-serif;color:#261c02;">
+		<div style="max-width:520px;margin:0 auto;padding:24px;">
+			<div style="height:4px;background:#e70033;"></div>
+			<div style="background:#ffffff;border:1px solid #dcdddf;border-top:0;padding:24px;">
+				<p style="margin:0 0 16px;font-size:24px;font-weight:bold;"><span style="color:#e70033;">Mi</span>Parking</p>
+				<p style="margin:0 0 16px;">Hola {{ user.first_name }}, tu reservación está confirmada.</p>
+				<table role="presentation" style="width:100%;border-collapse:collapse;font-size:15px;">
+					<tr><td style="padding:6px 0;color:#847a63;">Reservación</td><td style="padding:6px 0;font-weight:bold;">#{{ reservation.id }}</td></tr>
+					<tr><td style="padding:6px 0;color:#847a63;">Lote</td><td style="padding:6px 0;font-weight:bold;">{{ lot.name }} ({{ area.name }})</td></tr>
+					<tr><td style="padding:6px 0;color:#847a63;">Espacio</td><td style="padding:6px 0;font-weight:bold;">{{ number }}{% if reservation.spot.is_accessible %} (accesible){% endif %}</td></tr>
+					<tr><td style="padding:6px 0;color:#847a63;">Dirección</td><td style="padding:6px 0;">{{ lot.location }}</td></tr>
+					<tr><td style="padding:6px 0;color:#847a63;">Fecha</td><td style="padding:6px 0;font-weight:bold;">{{ reservation.start_time | fecha }}</td></tr>
+					<tr><td style="padding:6px 0;color:#847a63;">Horario</td><td style="padding:6px 0;font-weight:bold;">{{ reservation.start_time | hora }} – {{ reservation.end_time | hora }}</td></tr>
+				</table>
+				<p style="margin:16px 0;">Adjuntamos un archivo .ics para que la añadas a tu calendario.</p>
+				<a href="{{ url_for('reservations.show', reservation_id=reservation.id, _external=True) }}" style="display:inline-block;background:#e70033;color:#ffffff;text-decoration:none;font-weight:bold;padding:10px 16px;border-radius:8px;">Ver reservación</a>
+			</div>
+		</div>
+	</body>
+</html>
