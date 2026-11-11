@@ -16,3 +16,7 @@ class Spots(db.Model):
 	# 	FOREIGN KEY (lot_id) REFERENCES lots(id)
 	lot_id = db.Column(db.Integer, db.ForeignKey('lots.id'))
 	lot = db.relationship('Lots', backref=db.backref('spots', lazy=True))
+
+	def is_reservable_by(self, user):
+		"""Accessible spots are kept for users who need one."""
+		return not self.is_accessible or bool(user.requires_accessible_spot)
