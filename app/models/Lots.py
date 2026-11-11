@@ -1,4 +1,5 @@
 from app.database import db
+from app.models.Spots import Spots
 
 class Lots(db.Model):
 	__tablename__ = 'lots'
@@ -6,9 +7,9 @@ class Lots(db.Model):
 	# 	id int AUTO_INCREMENT PRIMARY KEY
 	id = db.Column(db.Integer, primary_key=True)
  
-	# 	name varchar(50) NOT NULL UNIQUE,
-	# SRS REQ.2.1 allows lot names up to 100 characters; floors are stored as
-	# child lots named "<lot name> · Piso N", so the column leaves room for that suffix.
+	# 	name varchar(120) NOT NULL UNIQUE,
+	# Lot names are limited to 100 characters by the form (SRS REQ.2.1). The extra
+	# room is for floors, which are child lots named "<lot name> · Piso N".
 	name = db.Column(db.String(120), unique=True, nullable=False)
 
 	# 	location varchar(255) NOT NULL,
@@ -47,34 +48,33 @@ class Lots(db.Model):
 
 	@classmethod
 	def create_lot(cls, name, location, is_paid, floors):
-		"""Build a lot, one child lot per floor and that floor's spots.
+		"""Build a lot with one child lot per floor, each with its spots.
 
-		`floors` is a list of dicts with `capacity`, `accessible_capacity` and
-		`role`, ordered bottom (Floor 1) to top. The caller adds and commits.
+		`floors` is ordered bottom to top. Each item has `capacity`,
+		`accessible_capacity` and `role_id`. The caller adds and commits.
 		"""
-		from app.models.Spots import Spots
-
-		name = name.strip()
-		location = location.strip()
 		lot = cls(
 			name=name,
 			location=location,
 			is_paid=is_paid,
-			is_active=True,
 			accessible=any(floor['accessible_capacity'] > 0 for floor in floors),
 		)
-		for number, floor_data in enumerate(floors, start=1):
-			floor = cls(
-				name=f"{name} · Piso {number}",
-				location=location,
-				is_paid=is_paid,
-				is_active=True,
-				accessible=floor_data['accessible_capacity'] > 0,
-				role=floor_data['role'],
-			)
-			floor.spots = [
-				Spots(is_accessible=index < floor_data['accessible_capacity'])
-				for index in range(floor_data['capacity'])
-			]
-			lot.floors.append(floor)
+		for number, floor in enumerate(floors, start=1):
+			lot.floors.append(cls._build_floor(lot, number, **floor))
 		return lot
+
+	@classmethod
+	def _build_floor(cls, lot, number, capacity, accessible_capacity, role_id):
+		floor = cls(
+			name=f"{lot.name} · Piso {number}",
+			location=lot.location,
+			is_paid=lot.is_paid,
+			accessible=accessible_capacity > 0,
+			role_id=role_id,
+		)
+		# The first `accessible_capacity` spots are the accessible ones.
+		floor.spots = [
+			Spots(is_accessible=spot < accessible_capacity)
+			for spot in range(capacity)
+		]
+		return floor

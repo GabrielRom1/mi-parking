@@ -4,9 +4,9 @@ from wtforms.validators import DataRequired, InputRequired, Length, NumberRange,
 
 from app.models import Lots
 
-# Guard rails so a typo can't create millions of spot rows in one request.
-MAX_FLOOR_CAPACITY = 2000
-MAX_FLOORS = 20
+
+def _strip(value):
+    return value.strip() if isinstance(value, str) else value
 
 
 class FloorForm(Form):
@@ -18,11 +18,7 @@ class FloorForm(Form):
         "Capacidad del piso",
         validators=[
             InputRequired(message="Introduce la capacidad del piso."),
-            NumberRange(
-                min=0,
-                max=MAX_FLOOR_CAPACITY,
-                message=f"Introduce un número del 0 al {MAX_FLOOR_CAPACITY}.",
-            ),
+            NumberRange(min=0, message="Introduce 0 o más."),
         ],
     )
 
@@ -37,25 +33,22 @@ class FloorForm(Form):
     role_id = SelectField(
         "Tipo de rol",
         coerce=int,
-        validate_choice=True,
         validators=[InputRequired(message="Selecciona un rol.")],
     )
 
     def validate_accessible_capacity(self, field):
+        if self.capacity.errors or field.data is None:
+            return  # An invalid value is already reported; there's nothing to compare.
+
         capacity = self.capacity.data
-        if (
-            field.data is not None
-            and capacity is not None
-            and not self.capacity.errors
-            and field.data > capacity
-        ):
+        if field.data > capacity:
             raise ValidationError(f"No puede exceder la capacidad del piso ({capacity}).")
 
 
 class LotForm(FlaskForm):
     name = StringField(
         "Nombre del lote",
-        filters=[lambda value: value.strip() if isinstance(value, str) else value],
+        filters=[_strip],
         validators=[
             DataRequired(message="Introduce el nombre del lote."),
             Length(max=100, message="Usa 100 caracteres o menos."),
@@ -64,7 +57,7 @@ class LotForm(FlaskForm):
 
     location = StringField(
         "Ubicación",
-        filters=[lambda value: value.strip() if isinstance(value, str) else value],
+        filters=[_strip],
         validators=[
             DataRequired(message="Introduce la ubicación."),
             Length(max=255, message="Usa 255 caracteres o menos."),
@@ -74,7 +67,7 @@ class LotForm(FlaskForm):
     # A checkbox always submits a value (checked or not), so "required" holds.
     is_paid = BooleanField("Lote pago")
 
-    floors = FieldList(FormField(FloorForm), min_entries=0, max_entries=MAX_FLOORS)
+    floors = FieldList(FormField(FloorForm))
 
     def __init__(self, *args, role_choices=(), **kwargs):
         super().__init__(*args, **kwargs)
@@ -88,14 +81,7 @@ class LotForm(FlaskForm):
             )
 
     def field_errors(self):
-        """Flatten errors to {input name: first message}, including floor fields."""
-        errors = {}
-        for field in self:
-            if isinstance(field, FieldList):
-                for entry in field.entries:
-                    for subfield in entry.form:
-                        if subfield.errors:
-                            errors[subfield.name] = subfield.errors[0]
-            elif field.errors:
-                errors[field.name] = field.errors[0]
-        return errors
+        """Return {input name: first error message}, including the floor fields."""
+        lot_fields = [field for field in self if field is not self.floors]
+        floor_fields = [field for entry in self.floors for field in entry.form]
+        return {field.name: field.errors[0] for field in lot_fields + floor_fields if field.errors}

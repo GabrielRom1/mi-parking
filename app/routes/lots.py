@@ -1,20 +1,31 @@
+import unicodedata
+
 from flask import Blueprint, jsonify, render_template, session
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import selectinload
 
 from app.database import db
 from app.decorators import role_required
-from app.forms.lot_form import MAX_FLOORS, LotForm
+from app.forms.lot_form import LotForm
 from app.models import Lots, Role, Spots, User
 
 lots_bp = Blueprint('lots', __name__)
+
+
+def _sort_key(name):
+    """Case- and accent-insensitive. lots.js compares these same keys when inserting a row."""
+    decomposed = unicodedata.normalize('NFD', name.casefold())
+    return ''.join(char for char in decomposed if not unicodedata.combining(char))
+
 
 def _role_label(role):
     return role.name.title()
 
 
-def _reservable_roles():
-    """Roles a floor can be restricted to. Admins can already reserve anywhere."""
-    return Role.query.filter(Role.name != 'admin').order_by(Role.id).all()
+def _role_choices():
+    """(id, label) for the roles a floor can be restricted to. Admins can already reserve anywhere."""
+    roles = Role.query.filter(Role.name != 'admin').order_by(Role.id).all()
+    return [(role.id, _role_label(role)) for role in roles]
 
 
 def _lot_summary(lot, spot_counts):
@@ -29,6 +40,7 @@ def _lot_summary(lot, spot_counts):
     return {
         'id': lot.id,
         'name': lot.name,
+        'sort_key': _sort_key(lot.name),
         'location': lot.location,
         'is_paid': bool(lot.is_paid),
         'floors': len(floors),
@@ -41,12 +53,9 @@ def _lot_summary(lot, spot_counts):
 def _spot_counts(lot_ids):
     if not lot_ids:
         return {}
+    accessible_count = db.func.sum(db.case((Spots.is_accessible.is_(True), 1), else_=0))
     rows = (
-        db.session.query(
-            Spots.lot_id,
-            db.func.count(Spots.id),
-            db.func.sum(db.case((Spots.is_accessible.is_(True), 1), else_=0)),
-        )
+        db.session.query(Spots.lot_id, db.func.count(Spots.id), accessible_count)
         .filter(Spots.lot_id.in_(lot_ids))
         .group_by(Spots.lot_id)
         .all()
@@ -64,63 +73,64 @@ def _plural(count, word):
     return f"{count} {word}{'' if count == 1 else 's'}"
 
 
+def _validation_message(errors):
+    if 'csrf_token' in errors:
+        return 'Tu sesión expiró. Recarga la página e inténtalo de nuevo.'
+    if errors.get('name', '').startswith('Ya existe'):
+        return errors['name']
+    if len(errors) == 1:
+        return 'Corrige el campo marcado e inténtalo de nuevo.'
+    return f'Corrige los {len(errors)} campos marcados e inténtalo de nuevo.'
+
+
+def _created_message(summary):
+    name = summary['name']
+    if not summary['floors']:
+        return f'{name} se creó como un lote vacío.'
+    floors = _plural(summary['floors'], 'piso')
+    spots = _plural(summary['spots'], 'espacio')
+    return f'{name} se creó con {floors} y {spots}.'
+
+
 @lots_bp.route('/', methods=['GET'])
 @role_required('admin')
 def index():
     user = db.session.get(User, session['user_id'])
-    roles = _reservable_roles()
     form = LotForm()
     return render_template(
         'lots/index.html',
         user=user,
         form=form,
-        role_options=[(role.id, _role_label(role)) for role in roles],
-        max_floors=MAX_FLOORS,
+        role_options=_role_choices(),
     )
 
 
 @lots_bp.route('/rows', methods=['GET'])
 @role_required('admin')
 def rows():
-    lots = Lots.query.filter(Lots.parent_id.is_(None)).all()
-    lots.sort(key=lambda lot: lot.name.casefold())
-    return render_template('lots/_rows.html', lots=_lot_summaries(lots))
+    lots = (
+        Lots.query.options(selectinload(Lots.floors).selectinload(Lots.role))
+        .filter(Lots.parent_id.is_(None))
+        .all()
+    )
+    lots.sort(key=lambda lot: _sort_key(lot.name))
+    return render_template('lots/include/rows.html', lots=_lot_summaries(lots))
 
 
 @lots_bp.route('/', methods=['POST'])
 @role_required('admin')
 def create():
-    roles = {role.id: role for role in _reservable_roles()}
-    form = LotForm(role_choices=[(role_id, _role_label(role)) for role_id, role in roles.items()])
+    form = LotForm(role_choices=_role_choices())
 
     if not form.validate():
         errors = form.field_errors()
-        if 'csrf_token' in errors:
-            message = 'Tu sesión expiró. Recarga la página e inténtalo de nuevo.'
-        elif 'name' in errors and errors['name'].startswith('Ya existe'):
-            message = errors['name']
-        else:
-            count = len(errors)
-            message = (
-                'Corrige el campo marcado e inténtalo de nuevo.'
-                if count == 1
-                else f'Corrige los {count} campos marcados e inténtalo de nuevo.'
-            )
-        return jsonify(errors=errors, message=message), 422
+        return jsonify(errors=errors, message=_validation_message(errors)), 422
 
-    floors = [
-        {
-            'capacity': entry.form.capacity.data,
-            'accessible_capacity': entry.form.accessible_capacity.data,
-            'role': roles[entry.form.role_id.data],
-        }
-        for entry in form.floors.entries
-    ]
     lot = Lots.create_lot(
         name=form.name.data,
         location=form.location.data,
         is_paid=form.is_paid.data,
-        floors=floors,
+        floors=form.floors.data,
     )
 
     try:
@@ -128,23 +138,10 @@ def create():
         db.session.commit()
     except SQLAlchemyError:
         db.session.rollback()
-        return jsonify(
-            errors={},
-            message='No se pudo guardar el lote. Inténtalo de nuevo en un momento.',
-        ), 500
+        return jsonify(message='No se pudo guardar el lote. Inténtalo de nuevo en un momento.'), 500
 
     summary = _lot_summaries([lot])[0]
-    if summary['floors']:
-        message = (
-            f"{lot.name} se creó con {_plural(summary['floors'], 'piso')} "
-            f"y {_plural(summary['spots'], 'espacio')}."
-        )
-    else:
-        message = f"{lot.name} se creó como un lote vacío."
-
     return jsonify(
-        id=lot.id,
-        name=lot.name,
-        message=message,
-        row_html=render_template('lots/_row.html', lot=summary),
+        message=_created_message(summary),
+        row_html=render_template('lots/include/row.html', lot=summary),
     ), 201
