@@ -1,0 +1,9 @@
+{# The body of the lots table: one row per lot, or the empty state when there are none. Served by /admin/lots/rows, which the page fetches after it opens. #}
+{% from 'lots/include/state_row.html' import state_row %}
+{% for lot in lots %}
+	{% include 'lots/include/row.html' %}
+{% else %}
+	{% call state_row(icon_name='parking', icon_class='bg-black-50 text-black-500', title='Aún no hay lotes', hook='data-empty-state') %}
+		<p class="mt-1 text-black-700">Usa <span class="font-semibold text-ink">Crear lote</span> para agregar el primer lote de estacionamiento.</p>
+	{% endcall %}
+{% endfor %}

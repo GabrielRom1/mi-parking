@@ -1,0 +1,11 @@
+{# Macro for a full-width table row with an icon and a message. Used for the list's empty state and its load-error state. #}
+{% from 'include/icons.html' import icon %}
+{% macro state_row(icon_name, icon_class, title, hook) -%}
+<tr {{ hook }}>
+	<td colspan="5" class="px-6 py-16 text-center">
+		<span class="mx-auto mb-3 grid size-10 place-items-center rounded-full {{ icon_class }}">{{ icon(icon_name, 'size-5') }}</span>
+		<p class="font-semibold">{{ title }}</p>
+		{{ caller() }}
+	</td>
+</tr>
+{%- endmacro %}

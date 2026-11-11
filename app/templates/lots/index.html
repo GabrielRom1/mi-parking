@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% from 'include/icons.html' import icon %}
+{% from 'lots/include/state_row.html' import state_row %}
+
+{% block head %}
+	{{ super() }}
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+{% endblock %}
+
+{% block title %}Gestión de lotes - MiParking{% endblock %}
+
+{% set label_class = "text-small font-semibold text-black-700" %}
+{% set input_class = "h-10 w-full rounded-lg border border-cool-gray bg-white px-3 text-body text-ink outline-none placeholder:text-black-500 focus:border-brand focus:ring-4 focus:ring-brand-100 aria-invalid:border-brand-700" %}
+{% set number_class = "tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" %}
+{% set help_class = "text-small text-black-500" %}
+{% set error_class = "flex items-start gap-1 text-small text-brand-700 motion-safe:animate-error-in" %}
+{% set overline_class = "text-[11px] leading-4 font-bold tracking-[0.06em] uppercase" %}
+
+{% macro field(id, label, help=none) -%}
+	<div class="flex flex-col gap-1.5" data-field>
+		<label for="{{ id }}" class="{{ label_class }}">{{ label }} *</label>
+		{{ caller() }}
+		{% if help %}<p id="{{ id }}-help" data-help class="{{ help_class }}">{{ help }}</p>{% endif %}
+		<p id="{{ id }}-error" data-error hidden class="{{ error_class }}">
+			<span class="translate-y-[2px]">{{ icon('alert-circle', 'size-[14px]') }}</span>
+			<span data-error-text></span>
+		</p>
+	</div>
+{%- endmacro %}
+
+{% macro number_field(id, label, placeholder, help, hook) -%}
+	{% call field(id, label, help) %}
+		<input id="{{ id }}" name="{{ id }}" type="number" min="0" step="1" inputmode="numeric" required placeholder="{{ placeholder }}" {{ hook }} aria-describedby="{{ id }}-help {{ id }}-error" class="{{ input_class }} {{ number_class }}">
+	{% endcall %}
+{%- endmacro %}
+
+{% block body %}
+<div class="min-h-screen bg-gray-50 font-body text-body text-ink">
+	<div class="h-1 bg-brand"></div>
+	<header class="border-b border-gray-200 bg-white">
+		<div class="mx-auto flex h-[68px] max-w-[1200px] items-center justify-between">
+			<div class="flex items-center gap-2.5">
+				<p class="font-display text-[28px] leading-8 font-bold"><span class="text-brand">Mi</span>Parking</p>
+				<span class="rounded-full bg-gray-100 px-2 py-0.5 text-small font-semibold text-black-700">Admin</span>
+			</div>
+			<div class="flex h-full items-center gap-8">
+				<nav class="flex h-full items-stretch" aria-label="Administración">
+					<a href="{{ url_for('lots.index') }}" aria-current="page" class="flex items-center border-b-3 border-brand pt-[3px] font-semibold">Gestión</a>
+				</nav>
+				<div class="h-7 w-px bg-gray-200"></div>
+				<div class="flex items-center gap-2">
+					<span class="grid size-9 place-items-center rounded-full bg-brand-50 text-small font-semibold text-brand" aria-hidden="true">{{ (user.first_name[:1] ~ user.last_name[:1]) | upper }}</span>
+					<div>
+						<p class="font-semibold">{{ user.first_name }} {{ user.last_name }}</p>
+						<p class="text-small text-black-500">Administrador</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</header>
+
+	<main class="mx-auto flex max-w-[1200px] flex-col gap-6 py-10">
+		<div class="flex flex-col gap-1.5">
+			<h1 class="font-display text-[36px] leading-10 font-semibold">Gestión de lotes</h1>
+			<p class="text-black-700">Crea lotes de estacionamiento y sus pisos.</p>
+		</div>
+
+		<div class="flex h-10 items-center justify-end">
+			<button type="button" data-open-create class="btn btn-primary pl-3.5">
+				{{ icon('plus') }}
+				Crear lote
+			</button>
+		</div>
+
+		<div class="overflow-hidden rounded-xl border border-gray-200 bg-white">
+			<table class="w-full table-fixed border-collapse text-left" aria-describedby="lots-count" data-lots-table data-rows-url="{{ url_for('lots.rows') }}" aria-busy="true">
+				<colgroup>
+					<col>
+					<col class="w-[104px]">
+					<col class="w-[156px]">
+					<col class="w-[230px]">
+					<col class="w-[130px]">
+				</colgroup>
+				<thead class="border-b border-gray-200 bg-black-50 text-black-500">
+					<tr class="{{ overline_class }}">
+						<th scope="col" class="py-3 pr-4 pl-6 font-bold">Lote</th>
+						<th scope="col" class="py-3 pr-4 font-bold">Pisos</th>
+						<th scope="col" class="py-3 pr-4 font-bold">Capacidad</th>
+						<th scope="col" class="py-3 pr-4 font-bold">Acceso</th>
+						{# The Edit button labels itself; keep the column name for screen readers only. #}
+						<th scope="col" class="py-3 pr-6"><span class="sr-only">Acciones</span></th>
+					</tr>
+				</thead>
+				<tbody data-lots-body>
+					{% for _ in range(4) %}
+						<tr class="h-[76px] border-b border-gray-200 last:border-b-0" data-skeleton aria-hidden="true">
+							<td class="pr-4 pl-6"><div class="h-3.5 w-48 rounded bg-gray-100"></div><div class="mt-2 h-3 w-64 rounded bg-gray-100"></div></td>
+							<td class="pr-4"><div class="h-3.5 w-4 rounded bg-gray-100"></div></td>
+							<td class="pr-4"><div class="h-3.5 w-16 rounded bg-gray-100"></div><div class="mt-2 h-3 w-20 rounded bg-gray-100"></div></td>
+							<td class="pr-4"><div class="flex gap-1.5"><div class="h-[22px] w-16 rounded-full bg-gray-100"></div><div class="h-[22px] w-11 rounded-full bg-gray-100"></div></div></td>
+							<td class="pr-6"><div class="h-10 w-[78px] rounded-lg bg-gray-100"></div></td>
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+			<p class="sr-only" role="status" data-lots-status></p>
+		</div>
+
+		<p id="lots-count" class="text-small text-black-500 tabular-nums" data-lots-count hidden></p>
+	</main>
+</div>
+
+{# ---- Error state (inserted by lots.js if the list can't load) ---- #}
+<template id="lots-error-template">
+	{% call state_row(icon_name='alert-circle', icon_class='bg-brand-50 text-brand-700', title='No se pudieron cargar los lotes', hook='data-error-state') %}
+		<p class="mt-1 text-black-700">Revisa tu conexión e inténtalo de nuevo.</p>
+		<button type="button" data-retry class="btn btn-secondary mt-4">Reintentar</button>
+	{% endcall %}
+</template>
+
+{# ---- Toasts: a manual popover so they render above the modal dialog.
+	While the dialog is open they move into the band the dialog keeps free at the top. ---- #}
+<div popover="manual" data-toasts class="inset-auto top-[88px] data-[over-dialog]:top-4 right-[max(16px,calc((100vw-1200px)/2))] pointer-events-none m-0 w-[400px] overflow-visible border-0 bg-transparent p-0 font-body text-body text-ink"></div>
+
+<template id="toast-template">
+	<div data-toast class="group pointer-events-auto flex items-center gap-3 rounded-[10px] border border-gray-200 bg-white py-3.5 pr-3 pl-4 shadow-menu motion-safe:animate-toast-in data-[closing]:motion-safe:animate-toast-out">
+		<span class="w-1 self-stretch rounded-[2px] bg-green-600 group-data-[tone=error]:bg-brand-700"></span>
+		<span class="text-green-600 group-data-[tone=error]:hidden">{{ icon('check-circle', 'size-5') }}</span>
+		<span class="hidden text-brand-700 group-data-[tone=error]:block">{{ icon('alert-circle', 'size-5') }}</span>
+		<div class="min-w-0 flex-1">
+			<p class="font-semibold" data-toast-title></p>
+			<p class="mt-0.5 text-small text-black-700" data-toast-message></p>
+		</div>
+		<button type="button" data-toast-close aria-label="Cerrar" class="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md text-black-500 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-200">{{ icon('x', 'size-4') }}</button>
+	</div>
+</template>
+
+{# ---- Create lot dialog (Figma 03) ---- #}
+<dialog data-create-dialog aria-labelledby="create-lot-title" aria-describedby="create-lot-desc" class="mx-auto mt-[max(112px,calc((100vh-793px)/2))] mb-auto max-h-[calc(100vh-136px)] w-[920px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-2xl bg-white p-0 font-body text-body text-ink shadow-modal backdrop:bg-ink/45 open:flex">
+	<form data-create-form action="{{ url_for('lots.create') }}" method="post" novalidate class="flex min-h-0 flex-1 flex-col">
+		{{ form.hidden_tag() }}
+
+		<div class="flex items-start gap-4 border-b border-gray-200 px-7 pt-6 pb-5">
+			<div class="flex-1">
+				<h2 id="create-lot-title" class="font-display text-[26px] leading-8 font-semibold">Crear nuevo lote</h2>
+				<p id="create-lot-desc" class="mt-1 text-black-700">Los campos generales aplican a todo el lote. Selecciona un piso a la izquierda para definir su capacidad y rol.</p>
+			</div>
+			{# 16px dialog corner, 8px inset → 8px radius (nested rounding). #}
+			<button type="button" data-close-dialog aria-label="Cerrar" class="-mt-2 -mr-4 grid size-9 cursor-pointer place-items-center rounded-lg text-black-500 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-200">{{ icon('x', 'size-5') }}</button>
+		</div>
+
+		<div class="flex h-[617px] min-h-0 shrink">
+			<aside class="flex w-[280px] shrink-0 flex-col gap-2 overflow-y-auto border-r border-gray-200 bg-black-50 p-6" aria-label="Pisos">
+				<p class="{{ overline_class }} text-black-500 tabular-nums">Pisos · <span data-floor-count>0</span></p>
+				<button type="button" data-add-floor class="btn btn-secondary w-full shrink-0 pl-3.5">
+					{{ icon('plus') }}
+					Nuevo piso
+				</button>
+				<p data-no-floors class="pt-1 text-small text-black-500">Aún no hay pisos. Puedes crear el lote vacío y agregar pisos luego.</p>
+				<ul data-floor-list class="flex flex-col gap-2"></ul>
+				<div class="flex-1"></div>
+				<div class="border-t border-gray-200 pt-3">
+					<p class="text-small text-black-500">Total del lote</p>
+					<p class="font-semibold tabular-nums" data-lot-total></p>
+				</div>
+				<p class="text-small text-black-500">Los pisos se agregan arriba. Solo se puede eliminar el piso superior.</p>
+			</aside>
+
+			<div class="flex min-w-0 flex-1 flex-col gap-5 overflow-y-auto px-7 pt-6 pb-7">
+				<p class="{{ overline_class }} text-brand">Campos generales</p>
+
+				{% call field('name', 'Nombre del lote', 'Máximo 100 caracteres. Debe ser único.') %}
+					{{ form.name(class_=input_class, maxlength=100, required=true, autocomplete="off", placeholder="Ej. Estacionamiento Plaza Universitaria", **{'aria-describedby': 'name-help name-error'}) }}
+				{% endcall %}
+
+				{% call field('location', 'Ubicación') %}
+					{{ form.location(class_=input_class, maxlength=255, required=true, autocomplete="off", placeholder="Ej. Av. Ponce de León, frente a Plaza Universitaria", **{'aria-describedby': 'location-error'}) }}
+				{% endcall %}
+
+				<label class="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 px-4 py-3">
+					<span class="flex-1">
+						<span class="block {{ label_class }}">Lote Pagado *</span>
+						<span class="block {{ help_class }}">Los usuarios verán este lote marcado como uno con pago.</span>
+					</span>
+					<input type="checkbox" name="is_paid" value="y" role="switch" class="peer sr-only">
+					<span aria-hidden="true" class="relative h-[22px] w-10 shrink-0 rounded-full bg-cool-gray transition-colors duration-150 peer-checked:bg-green-600 peer-focus-visible:ring-4 peer-focus-visible:ring-brand-100 motion-reduce:transition-none after:absolute after:top-0.5 after:left-0.5 after:size-[18px] after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-150 peer-checked:after:translate-x-[18px] motion-reduce:after:transition-none"></span>
+				</label>
+
+				<div class="h-px shrink-0 bg-gray-200"></div>
+
+				<p class="{{ overline_class }} text-brand" data-floor-heading></p>
+				<p data-no-floor-fields class="text-black-700">Agrega un piso para definir su capacidad, espacios accesibles y rol. Un lote sin pisos no tiene espacios.</p>
+				<div data-floor-panels></div>
+			</div>
+		</div>
+
+		<div class="flex items-center gap-3 border-t border-gray-200 px-7 py-4">
+			<p class="flex-1 text-small text-black-500">* Requerido</p>
+			<button type="button" data-close-dialog class="btn btn-ghost">Cancelar</button>
+			<button type="submit" data-submit class="btn btn-primary pl-3.5">
+				<span data-submit-idle>{{ icon('check-circle') }}</span>
+				<span data-submit-busy hidden>{{ icon('loader', 'size-[18px] motion-safe:animate-spin') }}</span>
+				<span data-submit-label></span>
+			</button>
+		</div>
+	</form>
+</dialog>
+
+{# ---- Floor list item + per-floor panel, cloned per floor by lots.js. "__n__" = floor number, "__i__" = form index. ---- #}
+<template id="floor-item-template">
+	<li class="relative">
+		<button type="button" data-floor-select class="group flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-gray-200 bg-white py-2.5 pr-10 pl-3 text-left aria-[current=true]:border-brand aria-[current=true]:bg-brand-50 data-[invalid]:border-brand-700 focus-visible:outline-3 focus-visible:outline-offset-1 focus-visible:outline-brand-200">
+			<span class="text-black-500 group-aria-[current=true]:text-brand">{{ icon('layers') }}</span>
+			<span class="min-w-0 flex-1">
+				<span class="block font-semibold">Piso __n__</span>
+				<span class="block truncate text-small text-black-500 tabular-nums group-data-[invalid]:text-brand-700" data-floor-summary></span>
+			</span>
+		</button>
+		<button type="button" data-remove-floor aria-label="Eliminar Piso __n__" class="absolute top-1/2 right-2 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-md text-brand-700 hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-brand-200">{{ icon('trash', 'size-4') }}</button>
+	</li>
+</template>
+
+<template id="floor-panel-template">
+	<fieldset data-floor-panel class="flex flex-col gap-5">
+		<legend class="sr-only">Piso __n__</legend>
+		<div class="grid grid-cols-2 gap-4">
+			{{ number_field(
+				id='floors-__i__-capacity',
+				label='Capacidad del piso',
+				placeholder='Ej. 80',
+				help='Los espacios se crean automáticamente.',
+				hook='data-capacity',
+			) }}
+			{{ number_field(
+				id='floors-__i__-accessible_capacity',
+				label='Capacidad accesible',
+				placeholder='Ej. 4',
+				help='No puede exceder la capacidad del piso.',
+				hook='data-accessible',
+			) }}
+		</div>
+		{% call field('floors-__i__-role_id', 'Tipo de rol', 'Quién puede reservar espacios en este piso.') %}
+			<div class="relative">
+				<select id="floors-__i__-role_id" name="floors-__i__-role_id" aria-describedby="floors-__i__-role_id-help floors-__i__-role_id-error" class="{{ input_class }} cursor-pointer appearance-none pr-10">
+					{% for value, label in role_options %}
+						<option value="{{ value }}">{{ label }}</option>
+					{% endfor %}
+				</select>
+				<span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-black-500">{{ icon('chevron-down') }}</span>
+			</div>
+		{% endcall %}
+	</fieldset>
+</template>
+
+<script src="{{ url_for('static', filename='js/lots.js') }}" defer></script>
+{% endblock %}
