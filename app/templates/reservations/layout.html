@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block head %}
+	{{ super() }}
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+{% endblock %}
+
+{# Flash messages are shown inside the page, under the header. #}
+{% block flashes %}{% endblock %}
+
+{% set role_labels = {'estudiante': 'Estudiante', 'empleado': 'Empleado', 'admin': 'Administrador'} %}
+
+{% block body %}
+<div class="min-h-screen bg-gray-50 font-['Source_Sans_3',system-ui,sans-serif] text-[15px] leading-[22px] text-ink">
+	<div class="h-1 bg-brand"></div>
+	<header class="border-b border-gray-200 bg-white">
+		<div class="mx-auto flex min-h-[68px] max-w-[1200px] flex-wrap items-center justify-between gap-x-8 gap-y-2 px-4 py-2 sm:px-6">
+			<a href="{{ url_for('reservations.index') }}" class="font-['Barlow_Semi_Condensed',sans-serif] text-[28px] leading-8 font-bold"><span class="text-brand">Mi</span>Parking</a>
+			<div class="flex items-center gap-4 sm:gap-6">
+				<nav class="flex items-stretch self-stretch" aria-label="Principal">
+					<a href="{{ url_for('reservations.index') }}" {% if active_nav == 'reserve' %}aria-current="page"{% endif %} class="flex items-center border-b-[3px] pt-[3px] font-semibold {{ 'border-brand' if active_nav == 'reserve' else 'border-transparent text-ink/70 hover:text-ink' }}">Reservar</a>
+				</nav>
+				<div class="hidden h-7 w-px bg-gray-200 sm:block"></div>
+				<div class="flex items-center gap-2">
+					<span class="grid size-9 place-items-center rounded-full bg-red-50 text-[13px] font-semibold text-brand" aria-hidden="true">{{ (user.first_name[:1] ~ user.last_name[:1]) | upper }}</span>
+					<div class="hidden leading-tight sm:block">
+						<p class="font-semibold">{{ user.first_name }} {{ user.last_name }}</p>
+						<p class="text-[13px] text-ink/60">{{ role_labels.get(user.role.name, user.role.name) if user.role else 'Sin rol' }}</p>
+					</div>
+					<a href="{{ url_for('auth_bp.logout') }}" class="ml-2 rounded-lg px-2 py-1 text-[13px] font-semibold text-ink/70 hover:bg-gray-100 hover:text-ink">Salir</a>
+				</div>
+			</div>
+		</div>
+	</header>
+
+	<main class="mx-auto flex max-w-[1200px] flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
+		{% with messages = get_flashed_messages(with_categories=true) %}
+			{% for category, message in messages %}
+				<p role="status" class="flex items-center gap-2 rounded-xl border px-4 py-3 font-semibold {{ {'success': 'border-green-200 bg-green-50 text-green-800', 'warning': 'border-amber-200 bg-amber-50 text-amber-800'}.get(category, 'border-gray-200 bg-white') }}">{{ message }}</p>
+			{% endfor %}
+		{% endwith %}
+		{% block content %}{% endblock %}
+	</main>
+</div>
+{% endblock %}

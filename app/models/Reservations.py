@@ -36,4 +36,17 @@ class Reservation(db.Model):
 	cancelation_reason = db.Column(db.String(500), nullable=True)
 
 	incident_report = db.relationship('IncidentReport', back_populates='reservation', uselist=False)
-	
+
+	@classmethod
+	def active_overlapping(cls, start, end):
+		"""Active reservations that share any time with [start, end)."""
+		return cls.query.filter(
+			cls.status == 'Active',
+			cls.start_time < end,
+			cls.end_time > start,
+		)
+
+	@classmethod
+	def create(cls, user, spot, start, end):
+		"""The caller adds and commits."""
+		return cls(user=user, spot=spot, start_time=start, end_time=end, status='Active')
