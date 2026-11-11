@@ -10,7 +10,8 @@ from flask_bcrypt import Bcrypt
 
 bcrypt = Bcrypt()
 
-
+from flask_mail import Mail
+mail = Mail()
 
 def create_app(config_class=Config):
     app = Flask(__name__, instance_relative_config=True)
@@ -18,6 +19,7 @@ def create_app(config_class=Config):
 
     os.makedirs(app.instance_path, exist_ok=True)
     bcrypt.init_app(app)
+    mail.init_app(app)
     init_db(app, bcrypt)
 
     from app.routes.auth import auth_bp
