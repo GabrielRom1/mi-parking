@@ -9,6 +9,10 @@ def _strip(value):
     return value.strip() if isinstance(value, str) else value
 
 
+def _role_id_or_none(value):
+    return None if value in (None, "") else int(value)
+
+
 class FloorForm(Form):
     class Meta:
         # WTForms' built-in messages (e.g. a non-numeric value).
@@ -32,8 +36,7 @@ class FloorForm(Form):
 
     role_id = SelectField(
         "Tipo de rol",
-        coerce=int,
-        validators=[InputRequired(message="Selecciona un rol.")],
+        coerce=_role_id_or_none,
     )
 
     def validate_accessible_capacity(self, field):

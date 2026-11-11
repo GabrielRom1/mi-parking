@@ -243,10 +243,9 @@
 		</div>
 		{% call field('floors-__i__-role_id', 'Tipo de rol', 'Quién puede reservar espacios en este piso.') %}
 			<div class="relative">
-				<select id="floors-__i__-role_id" name="floors-__i__-role_id" required aria-describedby="floors-__i__-role_id-help floors-__i__-role_id-error" class="{{ input_class }} cursor-pointer appearance-none pr-10 invalid:text-black-500">
-					<option value="" selected disabled>Selecciona un rol</option>
+				<select id="floors-__i__-role_id" name="floors-__i__-role_id" aria-describedby="floors-__i__-role_id-help floors-__i__-role_id-error" class="{{ input_class }} cursor-pointer appearance-none pr-10">
 					{% for value, label in role_options %}
-						<option value="{{ value }}" class="text-ink">{{ label }}</option>
+						<option value="{{ value }}">{{ label }}</option>
 					{% endfor %}
 				</select>
 				<span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-black-500">{{ icon('chevron-down') }}</span>

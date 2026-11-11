@@ -23,9 +23,9 @@ def _role_label(role):
 
 
 def _role_choices():
-    """(id, label) for the roles a floor can be restricted to. Admins can already reserve anywhere."""
+    """(value, label) options for a floor's role, starting with no role. Admins can already reserve anywhere."""
     roles = Role.query.filter(Role.name != 'admin').order_by(Role.id).all()
-    return [(role.id, _role_label(role)) for role in roles]
+    return [('', 'Sin rol')] + [(role.id, _role_label(role)) for role in roles]
 
 
 def _lot_summary(lot, spot_counts):
