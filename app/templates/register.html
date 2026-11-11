@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Crear cuenta - Mi-Parking{% endblock %}
+
+{% block body %}
+	<main class="grid min-h-screen place-items-center px-3 py-4">
+		<section class="w-full max-w-[560px] rounded-[20px] border border-ink/10 bg-paper p-6 shadow-[0_24px_70px_rgb(38_28_2_/_0.10)] sm:p-10" aria-labelledby="register-title">
+			<p class="mb-2 text-xs font-bold tracking-[0.12em] text-brand uppercase">Mi-Parking</p>
+			<h1 class="text-[clamp(1.8rem,6vw,2.15rem)] leading-tight font-bold tracking-[-0.045em]" id="register-title">Crea tu cuenta</h1>
+
+			<form class="grid gap-5" method="post">
+				{{ form.hidden_tag() }}
+				{% for error in form.csrf_token.errors %}
+					<p class="text-sm text-red-700" role="alert">{{ error }}</p>
+				{% endfor %}
+				<div class="grid gap-5 sm:grid-cols-2">
+					<div class="grid content-start gap-2">
+						{{ form.first_name.label(class_="text-sm font-semibold") }}
+						{{ form.first_name(class_="min-h-12 w-full rounded-[10px] border border-cool-gray bg-paper px-3.5 text-[0.95rem] outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15", autocomplete="given-name", placeholder="Tu nombre") }}
+						{% for error in form.first_name.errors %}
+							<p class="text-sm text-red-700" role="alert">{{ error }}</p>
+						{% endfor %}
+					</div>
+
+					<div class="grid content-start gap-2">
+						{{ form.last_name.label(class_="text-sm font-semibold") }}
+						{{ form.last_name(class_="min-h-12 w-full rounded-[10px] border border-cool-gray bg-paper px-3.5 text-[0.95rem] outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15", autocomplete="family-name", placeholder="Tu apellido") }}
+						{% for error in form.last_name.errors %}
+							<p class="text-sm text-red-700" role="alert">{{ error }}</p>
+						{% endfor %}
+					</div>
+				</div>
+
+				<div class="grid gap-2">
+					{{ form.email.label(class_="text-sm font-semibold") }}
+					{{ form.email(class_="min-h-12 w-full rounded-[10px] border border-cool-gray bg-paper px-3.5 text-[0.95rem] outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15", autocomplete="email", placeholder="tu@correo.com") }}
+					{% for error in form.email.errors %}
+						<p class="text-sm text-red-700" role="alert">{{ error }}</p>
+					{% endfor %}
+				</div>
+
+				<div class="grid gap-2">
+					{{ form.password.label(class_="text-sm font-semibold") }}
+					{{ form.password(class_="min-h-12 w-full rounded-[10px] border border-cool-gray bg-paper px-3.5 text-[0.95rem] outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15", autocomplete="new-password", minlength="8", pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[?!#$&]).{8,}", title="Usa al menos 8 caracteres, una letra mayúscula, un número y uno de estos símbolos: (?, !, #, $, &)", placeholder="Crea una contraseña segura") }}
+					<p class="text-xs leading-relaxed text-ink/60">Mínimo 8 caracteres, una mayúscula, un número y un símbolo: (?, !, #, $, &).</p>
+					{% for error in form.password.errors %}
+						<p class="text-sm text-red-700" role="alert">{{ error }}</p>
+					{% endfor %}
+				</div>
+
+				<div class="grid gap-2">
+					{{ form.confirm_password.label(class_="text-sm font-semibold") }}
+					{{ form.confirm_password(class_="min-h-12 w-full rounded-[10px] border border-cool-gray bg-paper px-3.5 text-[0.95rem] outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15", autocomplete="new-password", placeholder="Repite tu contraseña") }}
+					{% for error in form.confirm_password.errors %}
+						<p class="text-sm text-red-700" role="alert">{{ error }}</p>
+					{% endfor %}
+				</div>
+
+				<div class="grid gap-2">
+					{{ form.user_role.label(class_="text-sm font-semibold") }}
+					{{ form.user_role(class_="min-h-12 w-full rounded-[10px] border border-cool-gray bg-paper px-3.5 text-[0.95rem] outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15") }}
+					{% for error in form.user_role.errors %}
+						<p class="text-sm text-red-700" role="alert">{{ error }}</p>
+					{% endfor %}
+				</div>
+
+				<fieldset class="grid gap-3">
+					<legend class="text-sm font-semibold">{{ form.requires_accessible_spot.label.text }}</legend>
+					<div class="flex flex-wrap gap-x-6 gap-y-3">
+						{% for option in form.requires_accessible_spot %}
+							<label class="flex cursor-pointer items-center gap-2 text-sm">
+								{{ option(class_="size-4 accent-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand") }}
+								{{ option.label.text }}
+							</label>
+						{% endfor %}
+					</div>
+					{% for error in form.requires_accessible_spot.errors %}
+						<p class="text-sm text-red-700" role="alert">{{ error }}</p>
+					{% endfor %}
+				</fieldset>
+
+				<button class="mt-1 min-h-[50px] cursor-pointer rounded-[10px] bg-brand text-[0.95rem] font-bold text-paper transition hover:bg-[#c9002d] active:translate-y-px focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-brand/30" type="submit">Crear cuenta</button>
+			</form>
+
+			<p class="mt-7 text-center text-[0.84rem] leading-relaxed text-ink/65">¿Ya tienes una cuenta? <a class="text-brand underline hover:no-underline" href="{{ url_for('auth_bp.login') }}">Inicia sesión</a></p>
+		</section>
+	</main>
+{% endblock %}

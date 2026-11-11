@@ -1,1 +1,12 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+
+@source "../templates";
+
+@theme {
+  --color-brand: #e70033;
+  --color-cool-gray: #babcbe;
+  --color-ink: #261c02;
+  --color-cream: #f5ead5;
+  --color-cream-light: #fbf7ef;
+  --color-paper: #fffdf9;
+}

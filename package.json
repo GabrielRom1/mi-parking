@@ -30,6 +30,8 @@
     "to-regex-range": "^5.0.1"
   },
   "scripts": {
+    "build:css": "tailwindcss -i app/static/app.css -o app/static/css/tailwind.css",
+    "watch:css": "tailwindcss -i app/static/app.css -o app/static/css/tailwind.css --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

@@ -15,6 +15,8 @@ class Lots(db.Model):
 	# 	is_paid TINYINT DEFAULT 0,
 	is_paid = db.Column(db.Boolean, default=False)
 
+	date_to_be_deleted = db.Column(db.Date, nullable=True)
+
 	# 	is_active TINYINT DEFAULT 1,
 	is_active = db.Column(db.Boolean, default=True)
 

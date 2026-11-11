@@ -9,6 +9,9 @@ class Spots(db.Model):
 	# 	is_accessible TINYINT DEFAULT 0,
 	is_accessible = db.Column(db.Boolean, default=False)
 
+	date_to_be_deleted = db.Column(db.Date, nullable=True)
+
+
 	# 	lot_id int,
 	# 	FOREIGN KEY (lot_id) REFERENCES lots(id)
 	lot_id = db.Column(db.Integer, db.ForeignKey('lots.id'))

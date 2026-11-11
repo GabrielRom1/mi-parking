@@ -23,8 +23,6 @@ class Reservation(db.Model):
 	# 	end_time DATETIME NOT NULL,
 	end_time = db.Column(db.DateTime, nullable=False)
 
-	incident_report = db.relationship('IncidentReport', back_populates='reservation', uselist=False)
-
 	# 	status ENUM('Active', 'Completed', 'Cancelled') NOT NULL DEFAULT 'Active',
 	status = db.Column(db.Enum('Active', 'Completed', 'Cancelled', name='reservation_status'), nullable=False, default='Active')
 
@@ -34,7 +32,8 @@ class Reservation(db.Model):
 	# 	check_out_time DATETIME NULL,
 	check_out_time = db.Column(db.DateTime, nullable=True)
 
-	# 	cancelation_reason TEXT NULL,
-	cancelation_reason = db.Column(db.Text, nullable=True)
+	# 	cancelation_reason varchar(500) NULL,
+	cancelation_reason = db.Column(db.String(500), nullable=True)
 
+	incident_report = db.relationship('IncidentReport', back_populates='reservation', uselist=False)
 	
