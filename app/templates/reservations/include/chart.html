@@ -1,0 +1,52 @@
+{# Availability heat map (SDS Screen #4). One column per day, one cell per slot,
+	shaded by how many spots are free. reservations.js handles dragging a time range. #}
+{% set level_classes = ['bg-[#e9f3ee]', 'bg-[#c9e6d6]', 'bg-[#97cfb1]', 'bg-[#4ea67a]', 'bg-[#1f7a4d]'] %}
+{% set state_classes = {
+	'past': 'bg-[#ebebeb]',
+	'beyond': 'border border-dashed border-gray-300 bg-white',
+} %}
+{% set today = columns[0].day if columns else none %}
+
+<div data-chart-grid class="touch-none select-none">
+	<div class="flex gap-1.5 pl-11">
+		{% for column in columns %}
+			<div class="flex-1 text-center {{ 'text-brand' if column.day == today else 'text-ink/70' }}">
+				<p class="text-[11px] leading-4 font-bold tracking-[0.06em] uppercase">{{ (column.day | fecha_corta).split(' ')[0] }}</p>
+				<p class="text-[17px] leading-6 font-semibold">{{ column.day.day }}</p>
+			</div>
+		{% endfor %}
+	</div>
+
+	<div class="mt-2 flex gap-1.5">
+		<div class="flex w-10 shrink-0 flex-col gap-[3px] text-[11px] leading-[14px] text-ink/60" aria-hidden="true">
+			{% for cell in columns[0].cells %}
+				<span class="h-[14px] whitespace-nowrap">{% if cell.start.minute == 0 %}{{ (cell.start | hora).replace(':00', '') }}{% endif %}</span>
+			{% endfor %}
+		</div>
+		{% for column in columns %}
+			<div data-column data-day-label="{{ column.day | fecha_corta }}" class="relative flex flex-1 flex-col gap-[3px]">
+				{% for cell in column.cells %}
+					<div data-cell data-state="{{ cell.state }}"
+						data-start="{{ cell.start.isoformat(timespec='minutes') }}" data-end="{{ cell.end.isoformat(timespec='minutes') }}"
+						data-label="{{ cell.start | hora }}" data-end-label="{{ cell.end | hora }}"
+						title="{{ cell.start | hora }} – {{ cell.end | hora }}{% if cell.state == 'open' %}: {{ cell.free }} de {{ cell.total }} libres{% endif %}"
+						class="h-[14px] rounded-[2px] {{ state_classes[cell.state] if cell.state != 'open' else level_classes[cell.level] ~ ' cursor-pointer hover:brightness-95' }}"></div>
+				{% endfor %}
+				<div data-selection hidden class="pointer-events-none absolute -inset-x-[3px] rounded-[4px] border-2 border-brand">
+					<span class="absolute -top-[6px] left-1/2 size-2.5 -translate-x-1/2 rounded-full border-2 border-brand bg-white"></span>
+					<span class="absolute -bottom-[6px] left-1/2 size-2.5 -translate-x-1/2 rounded-full border-2 border-brand bg-white"></span>
+				</div>
+			</div>
+		{% endfor %}
+	</div>
+</div>
+
+<div class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-ink/70">
+	<span class="flex items-center gap-1.5">
+		Menos espacios
+		{% for level in level_classes %}<span class="size-3 rounded-[2px] {{ level }}"></span>{% endfor %}
+		Más espacios
+	</span>
+	<span class="flex items-center gap-1.5"><span class="size-3 rounded-[2px] {{ state_classes.past }}"></span>Pasado</span>
+	<span class="flex items-center gap-1.5"><span class="size-3 rounded-[2px] {{ state_classes.beyond }}"></span>Más de {{ config.RESERVATION_WINDOW_HOURS }} h</span>
+</div>

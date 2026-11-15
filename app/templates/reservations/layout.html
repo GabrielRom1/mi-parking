@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'reservations/include/icons.html' import icon %}
 
 {% block head %}
 	{{ super() }}
@@ -11,34 +12,58 @@
 {% block flashes %}{% endblock %}
 
 {% set role_labels = {'estudiante': 'Estudiante', 'empleado': 'Empleado', 'admin': 'Administrador'} %}
+{# My Reservations (REQ.3.2) and My Reports (REQ.4.1) don't exist yet, so those links are placeholders. #}
+{% set nav_items = [
+	('reserve', 'Reservar', url_for('reservations.index')),
+	('reservations', 'Mis reservaciones', '#'),
+	('reports', 'Mis reportes', '#'),
+] %}
 
 {% block body %}
-<div class="min-h-screen bg-gray-50 font-['Source_Sans_3',system-ui,sans-serif] text-[15px] leading-[22px] text-ink">
-	<div class="h-1 bg-brand"></div>
-	<header class="border-b border-gray-200 bg-white">
-		<div class="mx-auto flex min-h-[68px] max-w-[1200px] flex-wrap items-center justify-between gap-x-8 gap-y-2 px-4 py-2 sm:px-6">
+<div class="min-h-screen bg-[#f4f4f4] font-['Source_Sans_3',system-ui,sans-serif] text-[15px] leading-[22px] text-ink">
+	<header class="border-t-4 border-b border-t-brand border-b-gray-200 bg-white">
+		<div class="mx-auto flex h-[68px] max-w-[1200px] items-center justify-between px-4 sm:px-6">
 			<a href="{{ url_for('reservations.index') }}" class="font-['Barlow_Semi_Condensed',sans-serif] text-[28px] leading-8 font-bold"><span class="text-brand">Mi</span>Parking</a>
-			<div class="flex items-center gap-4 sm:gap-6">
-				<nav class="flex items-stretch self-stretch" aria-label="Principal">
-					<a href="{{ url_for('reservations.index') }}" {% if active_nav == 'reserve' %}aria-current="page"{% endif %} class="flex items-center border-b-[3px] pt-[3px] font-semibold {{ 'border-brand' if active_nav == 'reserve' else 'border-transparent text-ink/70 hover:text-ink' }}">Reservar</a>
+
+			<div class="hidden h-full items-center gap-6 md:flex">
+				<nav class="flex h-full items-stretch gap-7" aria-label="Principal">
+					{% for key, label, href in nav_items %}
+						<a href="{{ href }}" {% if key == active_nav %}aria-current="page"{% endif %} class="flex items-center border-b-[3px] pt-[3px] {{ 'border-brand font-semibold' if key == active_nav else 'border-transparent text-ink/70 hover:text-ink' }}">{{ label }}</a>
+					{% endfor %}
 				</nav>
-				<div class="hidden h-7 w-px bg-gray-200 sm:block"></div>
-				<div class="flex items-center gap-2">
-					<span class="grid size-9 place-items-center rounded-full bg-red-50 text-[13px] font-semibold text-brand" aria-hidden="true">{{ (user.first_name[:1] ~ user.last_name[:1]) | upper }}</span>
-					<div class="hidden leading-tight sm:block">
-						<p class="font-semibold">{{ user.first_name }} {{ user.last_name }}</p>
-						<p class="text-[13px] text-ink/60">{{ role_labels.get(user.role.name, user.role.name) if user.role else 'Sin rol' }}</p>
+				<div class="h-7 w-px bg-gray-200"></div>
+				<details class="group relative">
+					<summary class="flex cursor-pointer list-none items-center gap-2.5 rounded-lg py-1 [&::-webkit-details-marker]:hidden">
+						<span class="grid size-9 place-items-center rounded-full bg-red-50 text-[13px] font-semibold text-brand" aria-hidden="true">{{ (user.first_name[:1] ~ user.last_name[:1]) | upper }}</span>
+						<span class="leading-tight">
+							<span class="block font-semibold">{{ user.first_name }} {{ user.last_name }}</span>
+							<span class="block text-[13px] text-ink/60">{{ role_labels.get(user.role.name, user.role.name) if user.role else 'Sin rol' }}</span>
+						</span>
+						{{ icon('chevron-down', 'size-4 text-ink/60 transition group-open:rotate-180') }}
+					</summary>
+					<div class="absolute right-0 z-10 mt-2 w-44 rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+						<a href="{{ url_for('auth_bp.logout') }}" class="block rounded-md px-3 py-2 font-semibold hover:bg-gray-100">Cerrar sesión</a>
 					</div>
-					<a href="{{ url_for('auth_bp.logout') }}" class="ml-2 rounded-lg px-2 py-1 text-[13px] font-semibold text-ink/70 hover:bg-gray-100 hover:text-ink">Salir</a>
-				</div>
+				</details>
 			</div>
+
+			<details class="group relative md:hidden">
+				<summary class="grid size-10 cursor-pointer list-none place-items-center rounded-lg hover:bg-gray-100 [&::-webkit-details-marker]:hidden" aria-label="Menú">{{ icon('menu', 'size-6') }}</summary>
+				<div class="absolute right-0 z-10 mt-2 w-60 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+					<p class="px-3 pt-1 pb-2 text-[13px] text-ink/60">{{ user.first_name }} {{ user.last_name }} · {{ role_labels.get(user.role.name, user.role.name) if user.role else 'Sin rol' }}</p>
+					{% for key, label, href in nav_items %}
+						<a href="{{ href }}" {% if key == active_nav %}aria-current="page"{% endif %} class="block rounded-md px-3 py-2 hover:bg-gray-100 {{ 'font-semibold text-brand' if key == active_nav else '' }}">{{ label }}</a>
+					{% endfor %}
+					<a href="{{ url_for('auth_bp.logout') }}" class="mt-1 block rounded-md border-t border-gray-100 px-3 py-2 font-semibold hover:bg-gray-100">Cerrar sesión</a>
+				</div>
+			</details>
 		</div>
 	</header>
 
 	<main class="mx-auto flex max-w-[1200px] flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
 		{% with messages = get_flashed_messages(with_categories=true) %}
 			{% for category, message in messages %}
-				<p role="status" class="flex items-center gap-2 rounded-xl border px-4 py-3 font-semibold {{ {'success': 'border-green-200 bg-green-50 text-green-800', 'warning': 'border-amber-200 bg-amber-50 text-amber-800'}.get(category, 'border-gray-200 bg-white') }}">{{ message }}</p>
+				<p role="status" class="rounded-xl border border-gray-200 bg-white px-4 py-3 font-semibold">{{ message }}</p>
 			{% endfor %}
 		{% endwith %}
 		{% block content %}{% endblock %}

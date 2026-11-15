@@ -1,38 +1,12 @@
-from datetime import datetime
-
 from flask_wtf import FlaskForm
-from wtforms import SelectField
+from wtforms import DateTimeField, IntegerField
 from wtforms.validators import DataRequired
+from wtforms.widgets import HiddenInput
 
 
 class ReservationForm(FlaskForm):
-    """Start and end dropdowns (SRS REQ.3.1). Values are ISO datetimes; the view sets the choices for the chosen day."""
+    """The spot and time picked on the Reserve page (SRS REQ.3.1). The page fills these in; the user never types them."""
 
-    start_time = SelectField(
-        "Hora de entrada",
-        validators=[DataRequired(message="Escoge una hora de entrada.")],
-    )
-    end_time = SelectField(
-        "Hora de salida",
-        validators=[DataRequired(message="Escoge una hora de salida.")],
-    )
-
-    def set_choices(self, starts, ends):
-        self.start_time.choices = [(_value(moment), _label(moment)) for moment in starts]
-        self.end_time.choices = [(_value(moment), _label(moment)) for moment in ends]
-
-    @property
-    def start(self):
-        return datetime.fromisoformat(self.start_time.data)
-
-    @property
-    def end(self):
-        return datetime.fromisoformat(self.end_time.data)
-
-
-def _value(moment):
-    return moment.isoformat(timespec='minutes')
-
-
-def _label(moment):
-    return moment.strftime('%I:%M %p').lstrip('0')
+    spot_id = IntegerField(widget=HiddenInput(), validators=[DataRequired()])
+    start_time = DateTimeField(format='%Y-%m-%dT%H:%M', widget=HiddenInput(), validators=[DataRequired()])
+    end_time = DateTimeField(format='%Y-%m-%dT%H:%M', widget=HiddenInput(), validators=[DataRequired()])
