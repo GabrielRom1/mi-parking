@@ -1,5 +1,5 @@
 """Reservation rules for SRS REQ.3.1: who can use which lot, the time slots
-offered in the dropdowns, spot availability, and creating a reservation."""
+shown on the availability chart, spot availability, and creating a reservation."""
 
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -87,30 +87,57 @@ def day_boundaries(day):
     return boundaries
 
 
-def start_choices(day, current=None):
+def slot_starts(day):
+    """The start of every slot on `day`."""
+    return day_boundaries(day)[:-1]
+
+
+def slot_state(start, current):
+    """'past' (already started), 'beyond' (outside the reservation window) or 'open'."""
+    if start <= current:
+        return 'past'
+    if start >= _window_end(current):
+        return 'beyond'
+    return 'open'
+
+
+def window_days(current=None):
+    """The chart's columns: today, then every day that opens before the window ends."""
     current = current or now()
     window_end = _window_end(current)
-    return [
-        moment for moment in day_boundaries(day)[:-1]
-        if current < moment < window_end
-    ]
-
-
-def end_choices(day, current=None):
-    current = current or now()
-    return [moment for moment in day_boundaries(day)[1:] if moment > current]
-
-
-def reservable_days(current=None):
-    """Days within the reservation window that still have a start time left."""
-    current = current or now()
-    days = []
-    day = current.date()
-    while day <= _window_end(current).date():
-        if start_choices(day, current):
-            days.append(day)
+    days = [current.date()]
+    day = current.date() + timedelta(days=1)
+    while _opening(day) < window_end:
+        days.append(day)
         day += timedelta(days=1)
     return days
+
+
+def window_end(current=None):
+    return _window_end(current or now())
+
+
+def default_range(current=None):
+    """The first open slot, for an hour (or until closing). None if nothing is open."""
+    current = current or now()
+    for day in window_days(current):
+        for start in slot_starts(day):
+            if slot_state(start, current) == 'open':
+                return start, min(start + timedelta(hours=1), _closing(day))
+    return None, None
+
+
+def parse_range(values, current=None):
+    """`start`/`end` ISO datetimes from a request, or the default range if missing or invalid.
+
+    This only reads the values; reserve() still validates them before saving.
+    """
+    try:
+        start = datetime.fromisoformat(values['start'])
+        end = datetime.fromisoformat(values['end'])
+    except (KeyError, TypeError, ValueError):
+        return default_range(current)
+    return start, end
 
 
 # ========== Availability ==========
@@ -154,14 +181,112 @@ def day_timeline(day, ranges, current=None):
     return timeline
 
 
-def spot_state(ranges, current=None):
-    """'reserved' if taken right now, 'full' if no free slot is left today, else 'available'."""
+def _open_spots(areas, day):
+    return [
+        spot for area in areas if is_lot_active(area)
+        for spot in sorted(area.spots, key=lambda spot: spot.id)
+        if is_spot_open(spot, day)
+    ]
+
+
+def chart_columns(user, lot=None, current=None):
+    """One column per day for the availability chart, with how many spots are free in each slot.
+
+    Counts the spots of `lot`, or of every lot the user can use. A cell's
+    `level` (0-4) sets its shade: 0 means no free spot, 4 means most are free.
+    """
     current = current or now()
-    if _is_taken(ranges, current, current + timedelta(minutes=1)):
-        return 'reserved'
-    if not any(slot['state'] == 'free' for slot in day_timeline(current.date(), ranges, current)):
-        return 'full'
-    return 'available'
+    lots = [lot] if lot is not None else eligible_lots(user)
+    areas = [area for each in lots for area in usable_areas(user, each)]
+    days = window_days(current)
+    all_spots = _open_spots(areas, days[0])
+    ranges = active_reservations_by_spot(
+        [spot.id for spot in all_spots], _opening(days[0]), _closing(days[-1])
+    )
+
+    columns = []
+    for day in days:
+        spots = [spot for spot in all_spots if is_spot_open(spot, day)]
+        cells = []
+        for start in slot_starts(day):
+            end = start + _slot()
+            free = sum(1 for spot in spots if not _is_taken(ranges[spot.id], start, end))
+            if not free:
+                level = 0
+            else:
+                level = min(4, 1 + free * 4 // len(spots))
+            cells.append({
+                'start': start,
+                'end': end,
+                'state': slot_state(start, current),
+                'free': free,
+                'total': len(spots),
+                'level': level,
+            })
+        columns.append({'day': day, 'cells': cells})
+    return columns
+
+
+def lot_summary(user, lot, start, end):
+    """A lot card for the chosen time: its spots, and how many are free for the whole time."""
+    spots = _open_spots(usable_areas(user, lot), start.date()) if is_lot_active(lot) else []
+    ranges = active_reservations_by_spot([spot.id for spot in spots], start, end)
+    free = [spot for spot in spots if not ranges[spot.id]]
+    return {
+        'id': lot.id,
+        'name': lot.name,
+        'location': lot.location,
+        'is_paid': bool(lot.is_paid),
+        'is_active': is_lot_active(lot),
+        'spots': len(spots),
+        'free': len(free),
+        'accessible_free': sum(1 for spot in free if spot.is_accessible),
+    }
+
+
+def lot_summaries(user, start, end):
+    """Cards for every lot the user can use, active ones first, most free spots on top."""
+    lots = [lot_summary(user, lot, start, end) for lot in eligible_lots(user)]
+    lots.sort(key=lambda lot: (not lot['is_active'], -lot['free'], lot['name']))
+    return lots
+
+
+def spot_grid(user, lot, start, end, current=None):
+    """The floors of `lot` the user can use, each with its spots for the chosen time.
+
+    A spot is 'available' if it's free for the whole time, 'reserved' if
+    someone has part of it, or 'full' if that day has no free slot left.
+    Only available spots the user is allowed to take are selectable.
+    """
+    current = current or now()
+    day = start.date()
+    areas = [area for area in usable_areas(user, lot) if is_lot_active(area)]
+    spots = _open_spots(areas, day)
+    ranges = active_reservations_by_spot([spot.id for spot in spots], _opening(day), _closing(day))
+
+    floors = []
+    for area in areas:
+        tiles = []
+        for spot in (spot for spot in spots if spot.lot_id == area.id):
+            if not _is_taken(ranges[spot.id], start, end):
+                state = 'available'
+            elif any(slot['state'] == 'free' for slot in day_timeline(day, ranges[spot.id], current)):
+                state = 'reserved'
+            else:
+                state = 'full'
+            tiles.append({
+                'id': spot.id,
+                'label': spot_label(spot),
+                'state': state,
+                'is_accessible': bool(spot.is_accessible),
+                'selectable': state == 'available' and spot.is_reservable_by(user),
+            })
+        floors.append({
+            'number': floor_number(area),
+            'free': sum(1 for tile in tiles if tile['state'] == 'available'),
+            'spots': tiles,
+        })
+    return floors
 
 
 # ========== Creating a reservation ==========
@@ -233,7 +358,15 @@ def reserve(user, spot_id, start, end):
 
 # ========== Display helpers ==========
 
-def spot_number(spot):
-    """Spots have no label, so number them 1..n within their lot or floor."""
+def floor_number(area):
+    """Floors are child lots, numbered 1..n in the order they were created. A lot without floors is floor 1."""
+    if area.parent is None:
+        return 1
+    floors = sorted(area.parent.floors, key=lambda floor: floor.id)
+    return floors.index(area) + 1
+
+
+def spot_label(spot):
+    """Spots have no label column, so they're named <floor>-<number>, like 2-21 (SDS Option B)."""
     ordered = sorted(spot.lot.spots, key=lambda other: other.id)
-    return ordered.index(spot) + 1
+    return f'{floor_number(spot.lot)}-{ordered.index(spot) + 1:02d}'

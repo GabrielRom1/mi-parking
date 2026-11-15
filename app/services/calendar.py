@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 from icalendar import Calendar, Event
 
-from app.services.reservations import PUERTO_RICO, spot_number
+from app.services.reservations import PUERTO_RICO, spot_label
 
 
 def _to_utc(moment):
@@ -29,7 +29,7 @@ def build_ics(reservation):
     event.add('dtstamp', datetime.now(UTC))
     event.add('dtstart', _to_utc(reservation.start_time))
     event.add('dtend', _to_utc(reservation.end_time))
-    event.add('summary', f'Estacionamiento: {lot.name}, espacio {spot_number(spot)}')
+    event.add('summary', f'Estacionamiento: {lot.name}, espacio {spot_label(spot)}')
     event.add('location', lot.location)
     event.add('description', f'Reservación #{reservation.id} en MiParking.')
     calendar.add_component(event)
