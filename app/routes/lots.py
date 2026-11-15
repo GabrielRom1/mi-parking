@@ -146,15 +146,23 @@ def update(lot_id):
 @lots_bp.route("/<int:lot_id>/delete", methods=["POST"])
 @role_required("admin")
 def delete(lot_id):
-    deleted_reservations = Lots.delete_parent_lot(lot_id)
-    if deleted_reservations is None:
+    result = Lots.delete_parent_lot(lot_id)
+    if result is None:
         return jsonify(message="No existe un lote padre con ese identificador."), 404
+    if result["status"] == "scheduled":
+        return jsonify(
+            message=(
+                "El lote tiene reservaciones y quedó programado para eliminación "
+                f"el {result['date_to_be_deleted']}."
+            ),
+            scheduled=True,
+            date_to_be_deleted=result["date_to_be_deleted"],
+        )
     return jsonify(
         message=(
-            "El lote fue eliminado físicamente junto con sus pisos, espacios, "
-            "reservaciones e informes relacionados "
-            f"({deleted_reservations} reservaciones)."
-        )
+            "El lote fue eliminado físicamente junto con sus pisos y espacios."
+        ),
+        scheduled=False,
     )
 
 
@@ -179,3 +187,11 @@ def deactivate(lot_id):
     if not Lots.deactivate_parent_lot(lot_id):
         return jsonify(message="No existe un lote padre con ese identificador."), 404
     return jsonify(message="El lote fue desactivado; sus datos se conservaron.")
+
+
+@lots_bp.route("/<int:lot_id>/activate", methods=["POST"])
+@role_required("admin")
+def activate(lot_id):
+    if not Lots.activate_parent_lot(lot_id):
+        return jsonify(message="No existe un lote padre con ese identificador."), 404
+    return jsonify(message="El lote fue activado y ya puede aceptar reservaciones.")
