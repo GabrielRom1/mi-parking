@@ -66,6 +66,9 @@
 		return response.redirected;
 	}
 
+
+	// these 2 functions implement the filters from the client side.
+	// In the future if you want we can move the search to the backend if we decide to paginate
 	function normalizeSearch(value) {
 		return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase();
 	}
