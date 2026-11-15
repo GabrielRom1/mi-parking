@@ -371,8 +371,26 @@ class Lots(db.Model):
 		return True
 
 	@classmethod
+	def activate_parent_lot(cls, lot_id):
+		"""Enable a parent lot and its floors, cancelling any scheduled deletion."""
+		lot = cls.get_parent_lot_by_id(lot_id)
+		if lot is None:
+			return False
+		lot.is_active = True
+		lot.date_to_be_deleted = None
+		for spot in lot.spots:
+			spot.date_to_be_deleted = None
+		for floor in cls.get_floors(lot):
+			floor.is_active = True
+			floor.date_to_be_deleted = None
+			for spot in floor.spots:
+				spot.date_to_be_deleted = None
+		db.session.commit()
+		return True
+
+	@classmethod
 	def delete_parent_lot(cls, lot_id):
-		"""Delete a parent lot and every dependent report, reservation, spot, and floor."""
+		"""Schedule deletion when reservations exist; otherwise delete the lot now."""
 		from app.models.Incident_Reports import IncidentReport
 		from app.models.Reservations import Reservation
 
@@ -381,6 +399,13 @@ class Lots(db.Model):
 			return None
 		floors = cls.get_floors(lot)
 		lot_ids = {lot.id, *(floor.id for floor in floors)}
+		if Reservation.get_reserved_spot_ids(lot_ids):
+			deletion_date = cls.schedule_parent_deletion(lot_id)
+			return {
+				"status": "scheduled",
+				"date_to_be_deleted": deletion_date.isoformat(),
+			}
+
 		spots = Spots.query.filter(Spots.lot_id.in_(lot_ids)).all()
 		spot_ids = {spot.id for spot in spots}
 		reservations = Reservation.query.filter(
@@ -401,7 +426,10 @@ class Lots(db.Model):
 			db.session.delete(floor)
 		db.session.delete(lot)
 		db.session.commit()
-		return len(reservations)
+		return {
+			"status": "deleted",
+			"deleted_reservations": len(reservations),
+		}
 
 	@classmethod
 	def get_floors(cls, lot):
