@@ -1,13 +1,11 @@
 import unicodedata
 
-from flask import Blueprint, jsonify, render_template, session
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import selectinload
+from flask import Blueprint, jsonify, render_template, request, session
 
-from app.database import db
 from app.decorators import role_required
 from app.forms.lot_form import LotForm
-from app.models import Lots, Role, Spots, User
+from app.models import Lots, Role, User
+from app.validations.lots import validate_edit_payload
 
 lots_bp = Blueprint('lots', __name__)
 
@@ -23,50 +21,10 @@ def _role_label(role):
 
 
 def _role_choices():
-    """(value, label) options for a floor's role, starting with no role. Admins can already reserve anywhere."""
-    roles = Role.query.filter(Role.name != 'admin').order_by(Role.id).all()
-    return [('', 'Sin rol')] + [(role.id, _role_label(role)) for role in roles]
-
-
-def _lot_summary(lot, spot_counts):
-    floors = lot.floors
-    spots = accessible = 0
-    for lot_id in [lot.id, *(floor.id for floor in floors)]:
-        total, accessible_total = spot_counts.get(lot_id, (0, 0))
-        spots += total
-        accessible += accessible_total
-
-    roles = sorted({floor.role for floor in floors if floor.role}, key=lambda r: r.id)
-    return {
-        'id': lot.id,
-        'name': lot.name,
-        'sort_key': _sort_key(lot.name),
-        'location': lot.location,
-        'is_paid': bool(lot.is_paid),
-        'floors': len(floors),
-        'spots': spots,
-        'accessible': accessible,
-        'roles': [_role_label(role) for role in roles],
-    }
-
-
-def _spot_counts(lot_ids):
-    if not lot_ids:
-        return {}
-    accessible_count = db.func.sum(db.case((Spots.is_accessible.is_(True), 1), else_=0))
-    rows = (
-        db.session.query(Spots.lot_id, db.func.count(Spots.id), accessible_count)
-        .filter(Spots.lot_id.in_(lot_ids))
-        .group_by(Spots.lot_id)
-        .all()
-    )
-    return {lot_id: (total, accessible or 0) for lot_id, total, accessible in rows}
-
-
-def _lot_summaries(lots):
-    lot_ids = [lot.id for lot in lots] + [floor.id for lot in lots for floor in lot.floors]
-    spot_counts = _spot_counts(lot_ids)
-    return [_lot_summary(lot, spot_counts) for lot in lots]
+    """Return selectable roles, excluding administrators."""
+    return [("", "Sin rol")] + [
+        (role.id, _role_label(role)) for role in Role.get_roles_for_lots()
+    ]
 
 
 def _plural(count, word):
@@ -74,74 +32,150 @@ def _plural(count, word):
 
 
 def _validation_message(errors):
-    if 'csrf_token' in errors:
-        return 'Tu sesión expiró. Recarga la página e inténtalo de nuevo.'
-    if errors.get('name', '').startswith('Ya existe'):
-        return errors['name']
+    if "csrf_token" in errors:
+        return "Tu sesión expiró. Recarga la página e inténtalo de nuevo."
+    if errors.get("name", "").startswith("Ya existe"):
+        return errors["name"]
     if len(errors) == 1:
-        return 'Corrige el campo marcado e inténtalo de nuevo.'
-    return f'Corrige los {len(errors)} campos marcados e inténtalo de nuevo.'
+        return "Corrige el campo marcado e inténtalo de nuevo."
+    return f"Corrige los {len(errors)} campos marcados e inténtalo de nuevo."
 
 
 def _created_message(summary):
-    name = summary['name']
-    if not summary['floors']:
-        return f'{name} se creó como un lote vacío.'
-    floors = _plural(summary['floors'], 'piso')
-    spots = _plural(summary['spots'], 'espacio')
-    return f'{name} se creó con {floors} y {spots}.'
+    if not summary["floors"]:
+        return f"{summary['name']} se creó como un lote vacío."
+    return (
+        f"{summary['name']} se creó con "
+        f"{_plural(summary['floors'], 'piso')} y "
+        f"{_plural(summary['spots'], 'espacio')}."
+    )
 
 
-@lots_bp.route('/', methods=['GET'])
-@role_required('admin')
+@lots_bp.route("/", methods=["GET"])
+@role_required("admin")
 def index():
-    user = db.session.get(User, session['user_id'])
-    form = LotForm()
+    user = User.get_user_by_id(session["user_id"])
     return render_template(
-        'lots/index.html',
+        "lots/index.html",
         user=user,
-        form=form,
+        form=LotForm(),
         role_options=_role_choices(),
     )
 
 
-@lots_bp.route('/rows', methods=['GET'])
-@role_required('admin')
+@lots_bp.route("/rows", methods=["GET"])
+@role_required("admin")
 def rows():
-    lots = (
-        Lots.query.options(selectinload(Lots.floors).selectinload(Lots.role))
-        .filter(Lots.parent_id.is_(None))
-        .all()
-    )
-    lots.sort(key=lambda lot: _sort_key(lot.name))
-    return render_template('lots/include/rows.html', lots=_lot_summaries(lots))
+    lots = Lots.get_parent_lot_summaries()
+    lots.sort(key=lambda lot: _sort_key(lot["name"]))
+    return render_template("lots/include/rows.html", lots=lots)
 
 
-@lots_bp.route('/', methods=['POST'])
-@role_required('admin')
+@lots_bp.route("/", methods=["POST"])
+@role_required("admin")
 def create():
     form = LotForm(role_choices=_role_choices())
-
     if not form.validate():
         errors = form.field_errors()
         return jsonify(errors=errors, message=_validation_message(errors)), 422
 
-    lot = Lots.create_lot(
+    lot = Lots.create_parent_lot(
         name=form.name.data,
         location=form.location.data,
         is_paid=form.is_paid.data,
         floors=form.floors.data,
     )
+    if lot is None:
+        return jsonify(
+            message="No se pudo guardar el lote. Inténtalo de nuevo en un momento."
+        ), 500
 
-    try:
-        db.session.add(lot)
-        db.session.commit()
-    except SQLAlchemyError:
-        db.session.rollback()
-        return jsonify(message='No se pudo guardar el lote. Inténtalo de nuevo en un momento.'), 500
-
-    summary = _lot_summaries([lot])[0]
+    summary = Lots.get_parent_lot_summaries([lot])[0]
     return jsonify(
         message=_created_message(summary),
-        row_html=render_template('lots/include/row.html', lot=summary),
+        row_html=render_template("lots/include/row.html", lot=summary),
     ), 201
+
+
+@lots_bp.route("/<int:lot_id>", methods=["GET"])
+@role_required("admin")
+def edit(lot_id):
+    lot = Lots.get_parent_lot_details(lot_id)
+    if lot is None:
+        return jsonify(message="No existe un lote padre con ese identificador."), 404
+    return jsonify(lot=lot)
+
+
+@lots_bp.route("/<int:lot_id>", methods=["PUT", "PATCH"])
+@role_required("admin")
+def update(lot_id):
+    if not request.is_json:
+        return jsonify(message="Envía los cambios como JSON."), 415
+
+    payload, errors = validate_edit_payload(request.get_json())
+    if errors:
+        return jsonify(errors=errors, message="Corrige los datos del lote."), 422
+
+    error = Lots.update_parent_lot(lot_id, payload)
+    if error == "not_found":
+        return jsonify(message="No existe un lote padre con ese identificador."), 404
+    if error == "invalid_floor":
+        return jsonify(message="Uno o más pisos no pertenecen a este lote."), 422
+    if error == "invalid_role":
+        return jsonify(message="Uno o más roles no son válidos para los lotes."), 422
+    if error == "reserved_floor":
+        return jsonify(message="No se puede eliminar un piso con reservaciones."), 409
+    if error == "reserved_capacity":
+        return jsonify(
+            message=(
+                "No se puede reducir la capacidad ni cambiar el tipo de espacios "
+                "que tienen reservaciones."
+            )
+        ), 409
+    if error == "duplicate_name":
+        return jsonify(
+            message="El nombre del lote o de uno de sus pisos ya existe."
+        ), 409
+
+    return jsonify(
+        message="El lote y sus pisos se actualizaron correctamente.",
+        lot=Lots.get_parent_lot_details(lot_id),
+    )
+
+
+@lots_bp.route("/<int:lot_id>/delete", methods=["POST"])
+@role_required("admin")
+def delete(lot_id):
+    deleted_reservations = Lots.delete_parent_lot(lot_id)
+    if deleted_reservations is None:
+        return jsonify(message="No existe un lote padre con ese identificador."), 404
+    return jsonify(
+        message=(
+            "El lote fue eliminado físicamente junto con sus pisos, espacios, "
+            "reservaciones e informes relacionados "
+            f"({deleted_reservations} reservaciones)."
+        )
+    )
+
+
+@lots_bp.route("/<int:lot_id>/schedule-deletion", methods=["POST"])
+@role_required("admin")
+def schedule_deletion(lot_id):
+    deletion_date = Lots.schedule_parent_deletion(lot_id)
+    if deletion_date is None:
+        return jsonify(message="No existe un lote padre con ese identificador."), 404
+    return jsonify(
+        message=(
+            "El lote quedó programado para eliminación el "
+            f"{deletion_date.isoformat()}."
+        ),
+        date_to_be_deleted=deletion_date.isoformat(),
+    )
+
+
+@lots_bp.route("/<int:lot_id>/deactivate", methods=["POST"])
+@role_required("admin")
+def deactivate(lot_id):
+    if not Lots.deactivate_parent_lot(lot_id):
+        return jsonify(message="No existe un lote padre con ese identificador."), 404
+    return jsonify(message="El lote fue desactivado; sus datos se conservaron.")
