@@ -27,6 +27,7 @@ class Config:
     MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or 'MiParking <no-reply@miparking.local>'
     MAIL_BACKEND = os.environ.get('MAIL_BACKEND') or ('smtp' if MAIL_SERVER else 'console')
+    PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL') or 'http://localhost:5000'
 
     # Reservations (REQ.3.1). All times are Puerto Rico time
     RESERVATION_SLOT_MINUTES = 30
@@ -36,4 +37,10 @@ class Config:
 
     RESERVATION_CHECK_IN_GRACE_MINUTES = int(
         os.environ.get('RESERVATION_CHECK_IN_GRACE_MINUTES') or 15
+    )
+    RESERVATION_CHECKOUT_REMINDER_MINUTES = int(
+        os.environ.get('RESERVATION_CHECKOUT_REMINDER_MINUTES') or 15
+    )
+    RESERVATION_CHECKOUT_GRACE_MINUTES = int(
+        os.environ.get('RESERVATION_CHECKOUT_GRACE_MINUTES') or 15
     )
