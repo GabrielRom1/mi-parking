@@ -47,6 +47,15 @@ class Reservation(db.Model):
 		)
 
 	@classmethod
+	def active_without_check_in_before(cls, deadline):
+		"""Active reservations without check-in that started by the deadline."""
+		return cls.query.filter(
+			cls.status == 'Active',
+			cls.check_in_time.is_(None),
+			cls.start_time <= deadline,
+		)
+
+	@classmethod
 	def create(cls, user, spot, start, end):
 		"""The caller adds and commits."""
 		return cls(user=user, spot=spot, start_time=start, end_time=end, status='Active')

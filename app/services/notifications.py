@@ -25,3 +25,14 @@ def send_email(to, subject, template, attachments=(), **context):
         current_app.logger.exception('Error enviando correo a %s', to)
         return False
     return True
+
+
+def send_cancellation_email(user, reservation):
+    """Email the user that their reservation was cancelled."""
+    return send_email(
+        user.email,
+        'Tu reservación en MiParking fue cancelada',
+        'reservation_cancelled',
+        user=user,
+        reservation=reservation,
+    )
