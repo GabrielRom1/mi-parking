@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Confirmar salida · MiParking{% endblock %}
+{% block body %}
+	<main class="mx-auto max-w-xl px-5 py-12">
+		<section class="rounded-xl border border-ink/10 bg-paper p-6 shadow-sm">
+			<p class="text-xl font-bold"><span class="text-red-600">Mi</span>Parking</p>
+			<h1 class="mt-6 text-2xl font-bold">
+				{% if checked_out %}
+					Salida confirmada
+				{% elif action == 'extend' %}
+					Extender reservación
+				{% else %}
+					Confirmar salida
+				{% endif %}
+			</h1>
+			<p class="mt-3 text-sm">
+				Reservación #{{ reservation.id }} · {{ reservation.start_time | fecha }}
+				· {{ reservation.start_time | hora }} – {{ reservation.end_time | hora }}
+			</p>
+
+			{% if checked_out %}
+				<p class="mt-5">Esta reservación ya tiene una salida confirmada.</p>
+			{% elif action == 'extend' %}
+				{% if can_extend %}
+					<p class="mt-5">El próximo bloque está disponible. Confirma para añadir un bloque de {{ config.RESERVATION_SLOT_MINUTES }} minutos.</p>
+					<form method="post" class="mt-6">
+						{{ form.hidden_tag() }}
+						<button name="action" value="extend" class="rounded-lg bg-red-600 px-5 py-3 font-bold text-white">Confirmar extensión</button>
+					</form>
+				{% else %}
+					<p class="mt-5">Ya no es posible extender esta reservación por un bloque.</p>
+				{% endif %}
+			{% else %}
+				<p class="mt-5">Confirma únicamente después de haber salido del espacio.</p>
+				<form method="post" class="mt-6">
+					{{ form.hidden_tag() }}
+					<button name="action" value="checkout" class="rounded-lg bg-red-600 px-5 py-3 font-bold text-white">Confirmar salida</button>
+				</form>
+				{% if can_extend %}
+					<p class="mt-5 text-sm">El espacio está libre para el siguiente bloque; puedes <a class="font-bold underline" href="{{ extension_url }}">extender tu reservación antes de la hora de salida original</a>.</p>
+				{% endif %}
+			{% endif %}
+		</section>
+	</main>
+{% endblock %}

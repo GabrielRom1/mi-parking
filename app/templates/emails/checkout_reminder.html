@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="es">
+	<body style="margin:0;background:#f5f5f6;font-family:Arial,Helvetica,sans-serif;color:#261c02;">
+		<div style="max-width:520px;margin:0 auto;padding:24px;">
+			<div style="height:4px;background:#e70033;"></div>
+			<div style="background:#ffffff;border:1px solid #dcdddf;border-top:0;padding:24px;">
+				<p style="margin:0 0 16px;font-size:24px;font-weight:bold;"><span style="color:#e70033;">Mi</span>Parking</p>
+				<p style="margin:0 0 16px;">Hola {{ user.first_name }}, tu reservación #{{ reservation.id }} está por terminar. Cuando hayas salido, confirma tu salida:</p>
+				<p style="margin:24px 0;"><a href="{{ checkout_url }}" style="display:inline-block;background:#e70033;color:#ffffff;padding:12px 20px;text-decoration:none;font-weight:bold;">Confirmar salida</a></p>
+				{% if extension_url %}
+				<p style="margin:24px 0 8px;">El espacio está libre para el siguiente bloque. Puedes extender tu reservación por un bloque adicional:</p>
+				<p style="margin:16px 0;"><a href="{{ extension_url }}" style="display:inline-block;border:1px solid #e70033;color:#e70033;padding:12px 20px;text-decoration:none;font-weight:bold;">Extender reservación</a></p>
+				{% endif %}
+			</div>
+		</div>
+	</body>
+</html>
