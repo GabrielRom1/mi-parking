@@ -1,5 +1,28 @@
 from flask import current_app, render_template
 from flask_mailman import EmailMultiAlternatives
+from itsdangerous import URLSafeTimedSerializer
+
+
+def checkout_action_url(reservation, action):
+    """Build a signed link whose action is only valid within its reservation window."""
+    if action not in ('checkout', 'extend'):
+        raise ValueError(f'Unsupported checkout action: {action}')
+
+    serializer = URLSafeTimedSerializer(
+        current_app.config['SECRET_KEY'],
+        salt='reservation-checkout',
+    )
+    token = serializer.dumps({
+        'reservation_id': reservation.id,
+        'user_id': reservation.user_id,
+        'end_time': reservation.end_time.isoformat(),
+        'action': action,
+    })
+    base_url = current_app.config['PUBLIC_BASE_URL'].rstrip('/')
+    return (
+        f'{base_url}/reservations/checkout/{token}'
+        f'?action={action}'
+    )
 
 
 def send_email(to, subject, template, attachments=(), **context):
@@ -35,4 +58,30 @@ def send_cancellation_email(user, reservation):
         'reservation_cancelled',
         user=user,
         reservation=reservation,
+    )
+
+
+def send_checkout_timeout_email(user, reservation):
+    """Tell the user their reservation ended automatically after checkout grace."""
+    return send_email(
+        user.email,
+        'Tu reservación terminó automáticamente',
+        'reservation_checkout_timeout',
+        user=user,
+        reservation=reservation,
+    )
+
+
+def send_checkout_reminder_email(
+    user, reservation, checkout_url, extension_url=None
+):
+    """Ask the user to confirm checkout, optionally offering one time-slot extension."""
+    return send_email(
+        user.email,
+        'Confirma tu salida de MiParking',
+        'checkout_reminder',
+        user=user,
+        reservation=reservation,
+        checkout_url=checkout_url,
+        extension_url=extension_url,
     )

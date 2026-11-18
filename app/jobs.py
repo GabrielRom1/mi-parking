@@ -5,6 +5,7 @@ from app.models.Reservations import Reservation
 from app.services.notifications import (
     checkout_action_url,
     send_cancellation_email,
+    send_checkout_timeout_email,
     send_checkout_reminder_email,
 )
 from app.services.reservations import extension_available, now
@@ -49,7 +50,7 @@ def cancel_reservations_without_check_out(app):
         if reservations:
             db.session.commit()
             for reservation in reservations:
-                send_cancellation_email(reservation.user, reservation)
+                send_checkout_timeout_email(reservation.user, reservation)
 
             app.logger.info(
                 'Se cancelaron %s reservaciones sin check-out',
