@@ -32,6 +32,9 @@ class Reservation(db.Model):
 	# 	check_out_time DATETIME NULL,
 	check_out_time = db.Column(db.DateTime, nullable=True)
 
+	# 	checkout_reminder_sent_at DATETIME NULL,
+	checkout_reminder_sent_at = db.Column(db.DateTime, nullable=True)
+
 	# 	cancelation_reason varchar(500) NULL,
 	cancelation_reason = db.Column(db.String(500), nullable=True)
 
@@ -53,6 +56,27 @@ class Reservation(db.Model):
 			cls.status == 'Active',
 			cls.check_in_time.is_(None),
 			cls.start_time <= deadline,
+		)
+
+	@classmethod
+	def checked_in_without_checkout_reminder_before(cls, deadline):
+		"""Reservations due for a checkout reminder by deadline."""
+		return cls.query.filter(
+			cls.status == 'Active',
+			cls.check_in_time.isnot(None),
+			cls.check_out_time.is_(None),
+			cls.checkout_reminder_sent_at.is_(None),
+			cls.end_time <= deadline,
+		)
+
+	@classmethod
+	def checked_in_without_checkout_before(cls, deadline):
+		"""Reservations past their checkout grace period without checking out."""
+		return cls.query.filter(
+			cls.status == 'Active',
+			cls.check_in_time.isnot(None),
+			cls.check_out_time.is_(None),
+			cls.end_time <= deadline,
 		)
 
 	@classmethod

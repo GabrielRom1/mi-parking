@@ -46,6 +46,7 @@ CREATE TABLE reservations (
 	status ENUM('Active', 'Completed', 'Cancelled') NOT NULL DEFAULT 'Active',
 	check_in_time DATETIME NULL,
 	check_out_time DATETIME NULL,
+	checkout_reminder_sent_at DATETIME NULL,
 	cancelation_reason varchar(500) NULL,
 	FOREIGN KEY (user_id) REFERENCES users(id),
 	FOREIGN KEY (spot_id) REFERENCES spots(id)
