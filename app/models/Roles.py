@@ -37,3 +37,9 @@ class Role(db.Model):
 				role.description = description
 
 		db.session.commit()
+
+	@classmethod
+	def get_roles_for_lots(cls):
+		"""Return roles that can be assigned to parking lots, excluding admins."""
+		roles = cls.query.filter(cls.name != 'admin').all()
+		return roles
