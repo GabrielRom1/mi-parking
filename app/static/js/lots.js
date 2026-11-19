@@ -13,6 +13,7 @@
 	const searchInput = $('[data-lot-search]');
 	const filterButtons = $$('[data-lot-filter]');
 	const dialog = $('[data-edit-dialog]');
+	const actionDialog = $('[data-action-dialog]');
 	const form = $('[data-edit-form]');
 	const floorList = $('[data-floor-list]');
 	const floorPanels = $('[data-floor-panels]');
@@ -23,6 +24,8 @@
 	let dialogMode = 'create';
 	let submitting = false;
 	let lotFilter = 'all';
+	let pendingAction = null;
+	let floorDeletionDecisions = {};
 	const submitLabel = () => (
 		floors.length ? 'Crear lote' : 'Crear lote vacío'
 	);
@@ -95,14 +98,32 @@
 			const date = row.dataset.deletionDate;
 			const dateLabel = $('[data-deletion-date-label]', row);
 			if (date) {
+				const [scheduledDay, scheduledTime = ''] = date.split('T');
 				dateLabel.dateTime = date;
-				dateLabel.textContent = new Intl.DateTimeFormat('es', {
+				const formattedDay = new Intl.DateTimeFormat('es', {
 					day: 'numeric',
 					month: 'short',
-				}).format(new Date(`${date}T00:00:00`));
+				}).format(new Date(`${scheduledDay}T00:00:00`));
+				dateLabel.textContent =
+					`Elimina ${formattedDay}${scheduledTime ? ` · ${scheduledTime.slice(0, 5)}` : ''}`;
 				dateLabel.hidden = false;
 			} else {
 				dateLabel.hidden = true;
+			}
+			const deactivationDate = row.dataset.deactivationDate;
+			const deactivationLabel = $('[data-deactivation-date-label]', row);
+			if (deactivationDate) {
+				deactivationLabel.dateTime = deactivationDate;
+				const [scheduledDay, scheduledTime = ''] = deactivationDate.split('T');
+				deactivationLabel.textContent = `Desactiva ${new Intl.DateTimeFormat('es', {
+					day: 'numeric',
+					month: 'short',
+				}).format(new Date(`${scheduledDay}T00:00:00`))}${scheduledTime
+					? ` · ${scheduledTime.slice(0, 5)}`
+					: ''}`;
+				deactivationLabel.hidden = false;
+			} else {
+				deactivationLabel.hidden = true;
 			}
 		});
 
@@ -211,7 +232,14 @@
 		const isSelected = index === selected;
 		panel.hidden = !isSelected;
 		selectButton.setAttribute('aria-current', String(isSelected));
-		$('[data-remove-floor]', item).hidden = index !== floors.length - 1;
+		const floor = floors[index];
+		floor.canRemove = index === floors.length - 1;
+		const removeButton = $('[data-remove-floor]', item);
+		removeButton.hidden = !floor.canRemove && floor.id === null;
+		removeButton.setAttribute(
+			'aria-label',
+			floor.canRemove ? `Administrar o eliminar piso ${index + 1}` : `Administrar piso ${index + 1}`,
+		);
 
 		if ($('[aria-invalid]', panel)) {
 			selectButton.dataset.invalid = '';
@@ -224,6 +252,23 @@
 		$('[data-floor-summary]', item).textContent = capacity === null
 			? 'Sin configurar'
 			: spotsSummary(capacity, accessible ?? 0);
+		refreshFloorSchedule(floor);
+	}
+
+	function refreshFloorSchedule(floor) {
+		const label = $('[data-floor-schedule]', floor.item);
+		if (floor.dateToBeDeleted) {
+			label.textContent = `Eliminación programada: ${floor.dateToBeDeleted.replace('T', ' ').slice(0, 16)}`;
+			label.hidden = false;
+		} else if (floor.dateToBeDeactivated) {
+			label.textContent = `Desactivación programada: ${floor.dateToBeDeactivated.replace('T', ' ').slice(0, 16)}`;
+			label.hidden = false;
+		} else if (!floor.isActive) {
+			label.textContent = 'Inactivo';
+			label.hidden = false;
+		} else {
+			label.hidden = true;
+		}
 	}
 
 	function refreshFloors() {
@@ -267,28 +312,93 @@
 		const index = floors.length;
 		const item = fromTemplate('#floor-item-template', index);
 		const panel = fromTemplate('#floor-panel-template', index);
-		$('[data-floor-select]', item).addEventListener('click', () => selectFloor(index));
-		$('[data-remove-floor]', item).addEventListener('click', removeTopFloor);
+		const floor = {
+			id: floorData?.id ?? null,
+			item,
+			panel,
+			isActive: floorData?.is_active ?? true,
+			dateToBeDeleted: floorData?.date_to_be_deleted ?? null,
+			dateToBeDeactivated: floorData?.date_to_be_deactivated ?? null,
+		};
+		$('[data-floor-select]', item).addEventListener('click', () => {
+			selectFloor(floors.indexOf(floor));
+		});
+		$('[data-remove-floor]', item).addEventListener('click', () => {
+			void requestFloorRemoval(floor);
+		});
 		$('[data-capacity]', panel).value = floorData?.capacity ?? '';
 		$('[data-accessible]', panel).value = floorData?.accessible_capacity ?? '';
 		$('[name$="-role_id"]', panel).value = floorData?.role_id ?? '';
 		floorList.prepend(item);
 		floorPanels.append(panel);
-		floors.push({ id: floorData?.id ?? null, item, panel });
+		floors.push(floor);
 		selectFloor(index);
 	}
 
-	function removeTopFloor() {
-		const floor = floors.pop();
-		if (!floor) return;
+	function removeFloorFromEditor(floor) {
+		const index = floors.indexOf(floor);
+		if (index < 0) return;
+		const selectedFloor = floors[selected];
+		floors.splice(index, 1);
 		floor.item.remove();
 		floor.panel.remove();
-		selectFloor(floors.length - 1);
+		selectFloor(
+			selectedFloor === floor
+				? Math.min(index, floors.length - 1)
+				: floors.indexOf(selectedFloor),
+		);
 		$('[data-add-floor]').focus();
+	}
+
+	async function requestFloorRemoval(floor) {
+		if (!floor) return;
+		if (floor.id === null) {
+			removeFloorFromEditor(floor);
+			return;
+		}
+
+		const removeButton = $('[data-remove-floor]', floor.item);
+		removeButton.disabled = true;
+		try {
+			const clickedAtMs = Date.now();
+			const previewUrl = new URL(editingUrl, window.location.origin);
+			previewUrl.pathname = previewUrl.pathname.replace(
+				/\/\d+$/,
+				`/${floor.id}/delete/preview`,
+			);
+			const response = await fetch(previewUrl, {
+				method: 'POST',
+				headers: {
+					Accept: 'application/json',
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ clicked_at_ms: clickedAtMs }),
+			});
+			if (followLoginRedirect(response)) return;
+			const data = await response.json();
+			if (!response.ok) {
+				throw new Error(data.message || 'No se pudo verificar el piso.');
+			}
+			askForFloorDeletion(
+				{ ...data, floor_id: floor.id },
+				floor,
+				false,
+			);
+		} catch (error) {
+			showToast({
+				tone: 'error',
+				title: 'No se pudo verificar el piso',
+				message: error.message || 'Inténtalo de nuevo.',
+			});
+		} finally {
+			removeButton.disabled = false;
+		}
 	}
 
 	function resetForm() {
 		form.reset();
+		$('#name', form).readOnly = false;
+		floorDeletionDecisions = {};
 		floors.forEach(({ item, panel }) => {
 			item.remove();
 			panel.remove();
@@ -337,6 +447,7 @@
 
 			editingUrl = url;
 			$('#name', form).value = data.lot.name;
+			$('#name', form).readOnly = true;
 			$('#location', form).value = data.lot.location;
 			$('[name="is_paid"]', form).checked = data.lot.is_paid;
 			data.lot.floors.forEach((floor) => addFloor(floor));
@@ -433,6 +544,7 @@
 						name: $('#name', form).value.trim(),
 						location: $('#location', form).value.trim(),
 						is_paid: $('[name="is_paid"]', form).checked,
+						floor_deletion_decisions: floorDeletionDecisions,
 						floors: floors.map(({ id, panel }) => ({
 							id,
 							capacity: numberValue($('[data-capacity]', panel)),
@@ -445,6 +557,10 @@
 				});
 			if (followLoginRedirect(response)) return;
 			const data = await response.json();
+			if (response.status === 409 && data.floor_deletions?.length) {
+				askForFloorDeletion(data.floor_deletions[0], null, true);
+				return;
+			}
 			if (!response.ok) {
 				if (data.errors) showServerErrors(data.errors);
 				throw new Error(data.message || 'Corrige los datos e inténtalo de nuevo.');
@@ -457,7 +573,12 @@
 				showToast({ title: 'Lote creado', message: data.message });
 			} else {
 				await loadRows();
-				showToast({ title: 'Lote actualizado', message: data.message });
+				showToast({
+					title: data.scheduled_floor_ids?.length
+						? 'Eliminación de piso programada'
+						: 'Lote actualizado',
+					message: data.message,
+				});
 			}
 		} catch (error) {
 			showToast({
@@ -477,20 +598,387 @@
 		if (button) openEditor(button.dataset.editUrl);
 	});
 
-	async function postLotAction(button, title) {
+	function askForLotAction({
+		button,
+		url,
+		kind,
+		message,
+		lotName = null,
+		minimumDate,
+		minimumToken = null,
+		windowEnd = null,
+		windowHours = null,
+		slotMinutes = null,
+		canSchedule = true,
+		scheduledAt = null,
+		scheduledAction = null,
+		hasPendingReservations = false,
+	}) {
+		pendingAction = {
+			button,
+			url,
+			kind,
+			minimumToken,
+			scheduledAt: kind === 'delete' ? minimumDate : null,
+			windowEnd,
+			windowHours,
+			slotMinutes,
+			canSchedule,
+			scheduledAction,
+			hasPendingReservations,
+		};
+		$('#action-dialog-title').textContent = kind === 'delete'
+			? `¿Cómo deseas eliminar ${lotName ? `«${lotName}»` : 'este lote'}?`
+			: `¿Cómo deseas desactivar ${lotName ? `«${lotName}»` : 'este lote'}?`;
+		$('#action-dialog-desc').textContent = kind === 'delete'
+			? `${message} La fecha queda fijada por el sistema; no se puede escoger otra. El override lo elimina ahora y cancela las reservaciones que correspondan.`
+			: `${message} Puedes programar la desactivación para una fecha y hora o desactivarlo ahora.`;
+		$('[data-action-date-field]', actionDialog).hidden =
+			kind !== 'delete' && !scheduledAt;
+		$('[data-action-date-picker-field]', actionDialog).hidden = kind === 'delete'
+			|| Boolean(scheduledAt);
+		$('[data-schedule-deactivation-action]', actionDialog).hidden = true;
+		$('[data-cancel-schedule-action]', actionDialog).hidden = !scheduledAction;
+		$('[data-override-action]', actionDialog).hidden = Boolean(scheduledAction);
+		$('[data-schedule-action]', actionDialog).hidden =
+			!canSchedule || Boolean(scheduledAction);
+		$('[data-schedule-action]', actionDialog).textContent =
+			kind === 'delete' ? 'Programar eliminación' : 'Programar desactivación';
+		const dateInput = $('[data-action-date]', actionDialog);
+		dateInput.type = kind === 'delete' ? 'date' : 'datetime-local';
+		dateInput.step = kind === 'delete' ? '1' : '60';
+		dateInput.min = kind === 'delete'
+			? minimumDate.slice(0, 10)
+			: minimumDate;
+		dateInput.value = kind === 'delete'
+			? minimumDate.slice(0, 10)
+			: minimumDate;
+		$('[data-action-date-hint]', actionDialog).textContent =
+			`La fecha y hora mínima es ${minimumDate}.`;
+		$('[data-action-datetime-display]', actionDialog).textContent =
+			kind === 'delete'
+				? minimumDate.replace('T', ' ')
+				: scheduledAt
+					? scheduledAt.replace('T', ' ')
+					: '';
+		$('[data-action-date-field] > span:first-child', actionDialog).textContent =
+			kind === 'delete' ? 'Eliminación programada' : 'Desactivación programada';
+		$('[data-deletion-date-hint]', actionDialog).textContent = canSchedule
+			? kind === 'delete'
+				? `Programada automáticamente para ${windowHours} horas y ${slotMinutes} minutos después de abrir este diálogo.`
+				: 'Al llegar la fecha y hora, el scheduler marcará el lote y sus pisos como inactivos.'
+			: 'No se puede programar mientras el lote tenga una eliminación programada; cancélala primero.';
+		$('[data-override-action]', actionDialog).textContent =
+			kind === 'delete'
+				? 'Eliminar ahora con override'
+				: pendingAction.hasPendingReservations
+					? 'Desactivar ahora con override'
+					: 'Desactivar ahora';
+		actionDialog.showModal();
+		$('[data-schedule-action]', actionDialog).hidden
+			? $('[data-override-action]', actionDialog).focus()
+			: $('[data-schedule-action]', actionDialog).focus();
+	}
+
+	function askForDeleteConfirmation(button) {
+		pendingAction = {
+			button,
+			url: button.dataset.deleteUrl,
+			kind: 'delete-confirm',
+		};
+		$('#action-dialog-title').textContent = '¿Eliminar este lote?';
+		$('#action-dialog-desc').textContent =
+			'Esta acción eliminará el lote, sus pisos y sus espacios. No se encontraron reservaciones pendientes.';
+		$('[data-action-date-field]', actionDialog).hidden = true;
+		$('[data-action-date-picker-field]', actionDialog).hidden = true;
+		$('[data-schedule-action]', actionDialog).hidden = true;
+		$('[data-schedule-deactivation-action]', actionDialog).hidden = true;
+		$('[data-cancel-schedule-action]', actionDialog).hidden = true;
+		$('[data-override-action]', actionDialog).hidden = false;
+		$('[data-override-action]', actionDialog).textContent = 'Eliminar lote';
+		actionDialog.showModal();
+		$('[data-override-action]', actionDialog).focus();
+	}
+
+	function askForFloorDeletion(issue, floor = null, submitAfterDecision = false) {
+		const hasPending = issue.has_pending_reservations;
+		const hasScheduledDeletion = Boolean(issue.date_to_be_deleted);
+		const hasScheduledDeactivation = Boolean(issue.date_to_be_deactivated);
+		pendingAction = {
+			kind: hasPending ? 'floor-delete' : 'floor-confirm',
+			floorId: issue.floor_id,
+			floor,
+			submitAfterDecision,
+			minimumToken: issue.minimum_token,
+			scheduledAt: issue.minimum_datetime,
+			windowEnd: issue.window_end,
+			windowHours: issue.window_hours,
+			slotMinutes: issue.slot_minutes,
+			canSchedule: issue.can_schedule,
+			canRemove: floor?.canRemove ?? false,
+			scheduledAction: hasScheduledDeletion
+				&& !issue.date_to_be_deleted_inherited
+				? 'delete'
+				: hasScheduledDeactivation
+					&& !issue.date_to_be_deactivated_inherited
+					? 'deactivate'
+					: null,
+		};
+		const inheritedSchedule = issue.date_to_be_deleted_inherited
+			|| issue.date_to_be_deactivated_inherited;
+		$('#action-dialog-title').textContent = 'Administrar piso';
+		$('#action-dialog-desc').textContent = inheritedSchedule
+			? 'Esta programación pertenece al lote padre; cancélala desde la fila del lote en la lista.'
+			: floor && !floor.canRemove
+			? 'Desde aquí puedes programar la desactivación o cancelar una acción programada para este piso.'
+			: hasPending
+				? 'El piso tiene reservaciones pendientes. Puedes programar su eliminación, programar su desactivación o eliminarlo ahora con override.'
+				: 'Puedes eliminar el piso ahora o programar su desactivación. Las acciones programadas se pueden cancelar desde aquí.';
+		$('[data-action-date-field]', actionDialog).hidden =
+			!hasPending && !hasScheduledDeletion && !hasScheduledDeactivation;
+		$('[data-action-date-picker-field]', actionDialog).hidden =
+			!floor || hasScheduledDeactivation || inheritedSchedule;
+		$('[data-schedule-action]', actionDialog).hidden =
+			!hasPending || !issue.can_schedule || hasScheduledDeletion
+				|| (floor !== null && !floor?.canRemove);
+		$('[data-schedule-action]', actionDialog).textContent = 'Programar eliminación';
+		$('[data-schedule-deactivation-action]', actionDialog).hidden =
+			!floor
+			|| hasScheduledDeactivation
+			|| issue.date_to_be_deleted_inherited
+			|| issue.date_to_be_deactivated_inherited;
+		$('[data-cancel-schedule-action]', actionDialog).hidden =
+			!floor || !pendingAction.scheduledAction;
+		const dateInput = $('[data-action-date]', actionDialog);
+		const minimumDeactivationDate = issue.minimum_deactivation_datetime;
+		dateInput.type = 'datetime-local';
+		dateInput.step = '60';
+		dateInput.min = minimumDeactivationDate;
+		dateInput.value = minimumDeactivationDate;
+		$('[data-action-date-hint]', actionDialog).textContent =
+			`La desactivación no puede ser antes del ${minimumDeactivationDate}.`;
+		$('[data-override-action]', actionDialog).textContent = hasPending
+			? 'Eliminar ahora con override'
+			: 'Eliminar piso';
+		$('[data-override-action]', actionDialog).hidden =
+			Boolean(floor && !floor.canRemove);
+		if (hasPending || hasScheduledDeletion) {
+			$('[data-action-datetime-display]', actionDialog).textContent =
+				hasScheduledDeletion
+					? issue.date_to_be_deleted.replace('T', ' ').slice(0, 16)
+					: issue.minimum_datetime.replace('T', ' ');
+			$('[data-action-date-field] > span:first-child', actionDialog).textContent =
+				'Eliminación programada';
+			$('[data-deletion-date-hint]', actionDialog).textContent =
+				hasScheduledDeletion
+					? 'Esta eliminación está programada. Puedes cancelarla o cambiarla por una desactivación programada.'
+					: issue.can_schedule
+						? `La fecha se fija automáticamente a ${issue.window_hours} horas más un intervalo de ${issue.slot_minutes} minutos desde este clic.`
+						: 'No se puede programar la eliminación antes de que terminen las reservaciones; usa override para eliminar ahora.';
+		} else if (hasScheduledDeactivation) {
+			$('[data-action-datetime-display]', actionDialog).textContent =
+				issue.date_to_be_deactivated.replace('T', ' ').slice(0, 16);
+			$('[data-action-date-field] > span:first-child', actionDialog).textContent =
+				'Desactivación programada';
+			$('[data-deletion-date-hint]', actionDialog).textContent =
+				'El scheduler marcará el piso inactivo cuando llegue esta fecha y hora.';
+		}
+		if (!floor) {
+			$('[data-schedule-deactivation-action]', actionDialog).hidden = true;
+			$('[data-cancel-schedule-action]', actionDialog).hidden = true;
+			$('[data-action-date-picker-field]', actionDialog).hidden = true;
+		}
+		actionDialog.showModal();
+		$('[data-override-action]', actionDialog).focus();
+	}
+
+	async function prepareParentDeactivation(button) {
 		button.disabled = true;
 		try {
-			const response = await fetch(button.dataset.actionUrl, {
+			const response = await fetch(button.dataset.deletePreviewUrl, {
 				method: 'POST',
 				headers: { Accept: 'application/json' },
 			});
 			if (followLoginRedirect(response)) return;
 			const data = await response.json();
+			if (!response.ok) {
+				throw new Error(data.message || 'No se pudo verificar el lote.');
+			}
+			askForLotAction({
+				button,
+				url: button.dataset.toggleUrl,
+				kind: 'deactivate',
+				lotName: button.closest('[data-lot-name]')?.dataset.lotName,
+				message: data.date_to_be_deleted
+					? 'Este lote tiene una eliminación programada; puedes reemplazarla por una desactivación programada.'
+					: data.has_pending_reservations
+						? 'El lote o sus pisos tienen reservaciones pendientes.'
+						: 'El lote y sus pisos no tienen reservaciones pendientes.',
+				minimumDate: data.minimum_deactivation_datetime,
+				canSchedule: true,
+				scheduledAt: data.date_to_be_deactivated,
+				scheduledAction: data.date_to_be_deactivated ? 'deactivate' : null,
+				hasPendingReservations: data.has_pending_reservations,
+			});
+		} catch (error) {
+			showToast({
+				tone: 'error',
+				title: 'No se pudo verificar el lote',
+				message: error.message || 'Inténtalo de nuevo.',
+			});
+		} finally {
+			button.disabled = false;
+		}
+	}
+
+	function isDeletionScheduleValid(action) {
+		if (!action.scheduledAt || !action.windowEnd || !action.slotMinutes) return false;
+		const scheduledAt = Date.parse(action.scheduledAt);
+		const windowEnd = Date.parse(action.windowEnd);
+		return Number.isFinite(scheduledAt)
+			&& Number.isFinite(windowEnd)
+			&& scheduledAt > windowEnd
+			&& scheduledAt - windowEnd === action.slotMinutes * 60_000
+			&& action.canSchedule
+			&& Boolean(action.minimumToken);
+	}
+
+	async function submitFloorSchedule(action, floorId, scheduledDate = null) {
+		const endpoint = action === 'cancel'
+			? 'cancel-schedule'
+			: action === 'deactivate'
+				? 'deactivate'
+				: null;
+		if (!endpoint || !editingUrl) return;
+		const url = new URL(editingUrl, window.location.origin);
+		url.pathname = url.pathname.replace(/\/\d+$/, `/${floorId}/${endpoint}`);
+		const payload = action === 'cancel'
+			? { action: pendingAction.scheduledAction }
+			: { scheduled_date: scheduledDate };
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				Accept: 'application/json',
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(payload),
+		});
+		if (followLoginRedirect(response)) return;
+		const data = await response.json();
+		if (!response.ok) {
+			if (action === 'deactivate' && data.minimum_datetime) {
+				const dateInput = $('[data-action-date]', actionDialog);
+				dateInput.min = data.minimum_datetime;
+				dateInput.value = data.minimum_datetime;
+				$('[data-action-date-hint]', actionDialog).textContent =
+					`Las reservaciones cambiaron; la fecha y hora mínima ahora es ${data.minimum_datetime}.`;
+			}
+			throw new Error(data.message || 'No se pudo actualizar la programación.');
+		}
+
+		const floor = floors.find((item) => item.id === floorId);
+		if (floor) {
+			if (action === 'cancel') {
+				if (pendingAction.scheduledAction === 'delete') {
+					floor.dateToBeDeleted = null;
+				} else {
+					floor.dateToBeDeactivated = null;
+				}
+			} else {
+				floor.dateToBeDeleted = null;
+				floor.dateToBeDeactivated = data.date_to_be_deactivated;
+			}
+			refreshFloorSchedule(floor);
+		}
+		actionDialog.close();
+		await loadRows();
+		showToast({
+			title: action === 'cancel'
+				? 'Programación cancelada'
+				: 'Desactivación de piso programada',
+			message: data.message,
+		});
+	}
+
+	async function prepareDelete(button) {
+		button.disabled = true;
+		try {
+			const clickedAtMs = Date.now();
+			const response = await fetch(button.dataset.deletePreviewUrl, {
+				method: 'POST',
+				headers: {
+					Accept: 'application/json',
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ clicked_at_ms: clickedAtMs }),
+			});
+			if (followLoginRedirect(response)) return;
+			const data = await response.json();
+			if (!response.ok) throw new Error(data.message || 'No se pudo verificar el lote.');
+			if (data.has_pending_reservations) {
+				askForLotAction({
+					button,
+					url: button.dataset.deleteUrl,
+					kind: 'delete',
+					message: 'Este lote o alguno de sus pisos tiene reservaciones pendientes.',
+					minimumDate: data.minimum_datetime,
+					minimumToken: data.minimum_token,
+					windowEnd: data.window_end,
+					windowHours: data.window_hours,
+					slotMinutes: data.slot_minutes,
+					canSchedule: data.can_schedule,
+				});
+			} else {
+				askForDeleteConfirmation(button);
+			}
+		} catch (error) {
+			showToast({
+				tone: 'error',
+				title: 'No se pudo verificar el lote',
+				message: error.message || 'Inténtalo de nuevo.',
+			});
+		} finally {
+			button.disabled = false;
+		}
+	}
+
+	async function postLotAction(button, title, payload = {}, decisionKind = null) {
+		button.disabled = true;
+		try {
+			const actionUrl = button.dataset.actionUrl;
+			const response = await fetch(actionUrl, {
+				method: 'POST',
+				headers: {
+					Accept: 'application/json',
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify(payload),
+			});
+			if (followLoginRedirect(response)) return;
+			const data = await response.json();
+			if (response.status === 409 && decisionKind) {
+				askForLotAction({
+					button,
+					url: actionUrl,
+					kind: decisionKind,
+					message: data.message,
+					minimumDate: data.minimum_datetime,
+					minimumToken: data.minimum_token,
+					windowEnd: data.window_end,
+					windowHours: data.window_hours,
+					slotMinutes: data.slot_minutes,
+					canSchedule: data.can_schedule,
+					hasPendingReservations: data.has_pending_reservations,
+				});
+				return;
+			}
 			if (!response.ok) throw new Error(data.message || 'No se pudo completar la acción.');
 
 			await loadRows();
 			showToast({
-				title: data.scheduled ? 'Eliminación programada' : title,
+				title: data.scheduled
+					? (decisionKind === 'deactivate' ? 'Desactivación programada' : 'Eliminación programada')
+					: title,
 				message: data.message,
 			});
 		} catch (error) {
@@ -510,18 +998,181 @@
 
 		const toggle = target.closest('[data-lot-toggle]');
 		if (toggle) {
+			if (toggle.dataset.active === 'true') {
+				void prepareParentDeactivation(toggle);
+				return;
+			}
 			toggle.dataset.actionUrl = toggle.dataset.toggleUrl;
-			void postLotAction(toggle, 'Estado actualizado');
+			void postLotAction(
+				toggle,
+				'Estado actualizado',
+				{},
+				null,
+			);
 			return;
 		}
 
 		const deleteButton = target.closest('[data-delete-lot]');
 		if (!deleteButton) return;
-		if (!window.confirm(
-			'¿Seguro de eliminar este lote? Si tiene reservaciones, su eliminación se programará para más adelante.',
-		)) return;
-		deleteButton.dataset.actionUrl = deleteButton.dataset.deleteUrl;
-		void postLotAction(deleteButton, 'Lote eliminado');
+		void prepareDelete(deleteButton);
+	});
+
+	$('[data-cancel-action]', actionDialog).addEventListener('click', () => {
+		actionDialog.close();
+	});
+	$('[data-schedule-action]', actionDialog).addEventListener('click', () => {
+		if (!pendingAction) return;
+		if (pendingAction.kind === 'delete' || pendingAction.kind === 'floor-delete') {
+			if (!isDeletionScheduleValid(pendingAction)) {
+				showToast({
+					tone: 'error',
+					title: 'No se pudo programar la eliminación',
+					message: 'La fecha no cumple el límite de reservaciones de este lote. Cierra y vuelve a abrir el diálogo.',
+				});
+				return;
+			}
+		} else if (!$('[data-action-date]', actionDialog).reportValidity()) {
+			return;
+		}
+		if (pendingAction.kind === 'floor-delete') {
+			const {
+				floorId,
+				floor,
+				submitAfterDecision,
+				minimumToken,
+				scheduledAt,
+			} = pendingAction;
+			floorDeletionDecisions[floorId] = {
+				scheduled_date: scheduledAt,
+				minimum_token: minimumToken,
+			};
+			pendingAction = null;
+			actionDialog.close();
+			if (floor) removeFloorFromEditor(floor);
+			if (submitAfterDecision) form.requestSubmit();
+			return;
+		}
+		const {
+			button,
+			url,
+			kind,
+			minimumToken,
+			scheduledAt,
+		} = pendingAction;
+		const scheduledDate = $('[data-action-date]', actionDialog).value;
+		pendingAction = null;
+		actionDialog.close();
+		button.dataset.actionUrl = url;
+		void postLotAction(button, 'Acción actualizada', {
+			...(kind === 'delete'
+				? { scheduled_date: scheduledAt }
+				: kind === 'deactivate'
+					? { scheduled_date: scheduledDate }
+					: {}),
+			...(minimumToken ? { minimum_token: minimumToken } : {}),
+		}, kind);
+	});
+	$('[data-schedule-deactivation-action]', actionDialog).addEventListener('click', async () => {
+		if (!pendingAction?.floor || !pendingAction.floorId) return;
+		const dateInput = $('[data-action-date]', actionDialog);
+		if (!dateInput.reportValidity()) return;
+		const { floorId } = pendingAction;
+		try {
+			await submitFloorSchedule('deactivate', floorId, dateInput.value);
+		} catch (error) {
+			showToast({
+				tone: 'error',
+				title: 'No se pudo programar la desactivación',
+				message: error.message || 'Inténtalo de nuevo.',
+			});
+		}
+	});
+	$('[data-cancel-schedule-action]', actionDialog).addEventListener('click', async () => {
+		if (!pendingAction?.scheduledAction) return;
+		if (pendingAction.floor && pendingAction.floorId) {
+			const { floorId } = pendingAction;
+			try {
+				await submitFloorSchedule('cancel', floorId);
+			} catch (error) {
+				showToast({
+					tone: 'error',
+					title: 'No se pudo cancelar la programación',
+					message: error.message || 'Inténtalo de nuevo.',
+				});
+			}
+			return;
+		}
+		const { button, url, scheduledAction } = pendingAction;
+		const cancelUrl = new URL(url, window.location.origin);
+		cancelUrl.pathname = cancelUrl.pathname.replace(
+			/\/deactivate$/,
+			'/cancel-schedule',
+		);
+		button.disabled = true;
+		try {
+			const response = await fetch(cancelUrl, {
+				method: 'POST',
+				headers: {
+					Accept: 'application/json',
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ action: scheduledAction }),
+			});
+			if (followLoginRedirect(response)) return;
+			const data = await response.json();
+			if (!response.ok) {
+				throw new Error(data.message || 'No se pudo cancelar la programación.');
+			}
+			pendingAction = null;
+			actionDialog.close();
+			await loadRows();
+			showToast({ title: 'Programación cancelada', message: data.message });
+		} catch (error) {
+			showToast({
+				tone: 'error',
+				title: 'No se pudo cancelar la programación',
+				message: error.message || 'Inténtalo de nuevo.',
+			});
+		} finally {
+			button.disabled = false;
+		}
+	});
+	$('[data-override-action]', actionDialog).addEventListener('click', () => {
+		if (!pendingAction) return;
+		if (
+			pendingAction.kind === 'floor-delete'
+			|| pendingAction.kind === 'floor-confirm'
+		) {
+			const {
+				floorId,
+				floor,
+				submitAfterDecision,
+				kind,
+			} = pendingAction;
+			floorDeletionDecisions[floorId] = kind === 'floor-confirm'
+				? { confirmed: true }
+				: { override: true };
+			pendingAction = null;
+			actionDialog.close();
+			if (floor) removeFloorFromEditor(floor);
+			if (submitAfterDecision) form.requestSubmit();
+			return;
+		}
+		const { button, url, kind, hasPendingReservations } = pendingAction;
+		pendingAction = null;
+		actionDialog.close();
+		button.dataset.actionUrl = url;
+		void postLotAction(
+			button,
+			kind === 'delete-confirm' ? 'Lote eliminado' : 'Acción completada',
+			kind === 'delete-confirm'
+				? { confirmed: true }
+				: { override: kind === 'deactivate' ? hasPendingReservations : true },
+			kind === 'delete-confirm' || kind === 'delete' ? 'delete' : null,
+		);
+	});
+	actionDialog.addEventListener('close', () => {
+		pendingAction = null;
 	});
 
 	filterButtons.forEach((button) => {
