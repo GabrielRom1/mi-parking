@@ -12,7 +12,7 @@
 {% block flashes %}{% endblock %}
 
 {% set nav_items = [
-	('management', 'Gestión', management_url or '#'),
+	('management', 'Gestión', management_url),
 	('reports', 'Reportes', url_for('reports.index')),
 ] %}
 
