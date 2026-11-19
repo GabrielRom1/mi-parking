@@ -1,6 +1,8 @@
 # CREATE TABLE reservations(
 from app.database import db
 
+from .Spots import Spots
+
 class Reservation(db.Model):
 	__tablename__ = 'reservations'
 
@@ -40,6 +42,19 @@ class Reservation(db.Model):
 
 	incident_report = db.relationship('IncidentReport', back_populates='reservation', uselist=False)
 
+
+	@classmethod
+	def get_reserved_spot_ids(cls, floor_ids):
+		"""Return spot IDs with reservations on any of the supplied floors."""
+		if not floor_ids:
+			return set()
+		return {
+			spot_id
+			for (spot_id,) in cls.query.join(Spots)
+			.filter(Spots.lot_id.in_(floor_ids))
+			.with_entities(cls.spot_id)
+			.all()
+		}
 	@classmethod
 	def active_overlapping(cls, start, end):
 		"""Active reservations that share any time with [start, end)."""
