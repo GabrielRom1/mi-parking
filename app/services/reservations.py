@@ -355,6 +355,84 @@ def reserve(user, spot_id, start, end):
         raise
     return reservation
 
+def _extension_end(reservation):
+    extension_end = reservation.end_time + _slot()
+    closing = _closing(reservation.end_time.date())
+    return extension_end if extension_end <= closing else None
+
+
+def extension_available(reservation, expected_end=None, current=None):
+    """Whether the next configured time slot can be added to this reservation."""
+    current = current or now()
+    if (
+        reservation.status != 'Active'
+        or reservation.check_in_time is None
+        or reservation.check_out_time is not None
+        or reservation.end_time <= current
+        or (expected_end is not None and reservation.end_time != expected_end)
+    ):
+        return False
+
+    extension_end = _extension_end(reservation)
+    if extension_end is None:
+        return False
+
+    overlapping = Reservation.active_overlapping(
+        reservation.end_time, extension_end
+    )
+    if overlapping.filter(Reservation.spot_id == reservation.spot_id).first():
+        return False
+    if overlapping.filter(Reservation.user_id == reservation.user_id).first():
+        return False
+    return True
+
+
+def extend_reservation(reservation, expected_end):
+    """Extend by one configured slot, rechecking availability before saving."""
+    try:
+        db.session.execute(
+            db.update(Spots)
+            .where(Spots.id == reservation.spot_id)
+            .values(id=Spots.id)
+        )
+        db.session.refresh(reservation, with_for_update=True)
+        if not extension_available(reservation, expected_end=expected_end):
+            raise ReservationError(
+                'Ya no es posible extender esta reservación por un bloque.'
+            )
+        extension_end = _extension_end(reservation)
+        if extension_end is None:
+            raise ReservationError(
+                'Ya no es posible extender esta reservación por un bloque.'
+            )
+        reservation.end_time = extension_end
+        reservation.checkout_reminder_sent_at = None
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return reservation
+
+
+def check_out_reservation(reservation):
+    """Record the user's checkout and complete an active, checked-in reservation."""
+    checkout_deadline = reservation.end_time + timedelta(
+        minutes=current_app.config['RESERVATION_CHECKOUT_GRACE_MINUTES']
+    )
+    if (
+        reservation.status != 'Active'
+        or reservation.check_in_time is None
+        or reservation.check_out_time is not None
+        or now() >= checkout_deadline
+    ):
+        raise ReservationError(
+            'Esta reservación no está disponible para confirmar la salida.'
+        )
+    reservation.check_out_time = now()
+    reservation.status = 'Completed'
+    db.session.commit()
+    return reservation
+
 
 # ========== Display helpers ==========
 
