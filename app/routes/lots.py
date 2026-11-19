@@ -298,6 +298,8 @@ def deactivate(lot_id):
             scheduled=True,
             date_to_be_deactivated=scheduled_date.isoformat(timespec='minutes'),
         )
+    for reservation in result['canceled']:
+        send_cancellation_email(reservation.user, reservation)
     return jsonify(message="El lote o piso fue desactivado; sus datos se conservaron.")
 
 

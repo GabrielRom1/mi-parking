@@ -486,18 +486,7 @@ class Lots(db.Model):
 		lot = cls.get_parent_lot_by_id(lot_id)
 		if lot is None:
 			return False
-		lot.is_active = False
-		lot.date_to_be_deleted = None
-		lot.date_to_be_deactivated = None
-		for spot in lot.spots:
-			spot.date_to_be_deleted = None
-		for floor in cls.get_floors(lot):
-			floor.is_active = False
-			floor.date_to_be_deleted = None
-			floor.date_to_be_deactivated = None
-			for spot in floor.spots:
-				spot.date_to_be_deleted = None
-		db.session.commit()
+		cls._apply_lot_transaction(lot, 'deactivate')
 		return True
 
 	@classmethod
@@ -706,7 +695,6 @@ class Lots(db.Model):
 				for reservation in blockers:
 					reservation.status = 'Cancelled'
 					reservation.cancelation_reason = 'Lot deactivated by administrator'
-					reservation.spot_id = None
 					canceled.append(reservation)
 			else:
 				spot_ids = {spot.id for spot in spots}
