@@ -10,8 +10,9 @@ reports_bp = Blueprint('reports', __name__)
 @reports_bp.route('/', methods=['GET'])
 @role_required('admin')
 def index():
+    # Lot management (feature/lot-management) is registered at /admin/lots.
     management_url = (
-        url_for('lots.index') if 'lots.index' in current_app.view_functions else None
+        url_for('lots.index') if 'lots.index' in current_app.view_functions else '/admin/lots/'
     )
     return render_template(
         'reports/index.html',
