@@ -27,8 +27,11 @@ def login():
             session.clear()
             session.permanent = True
             session['user_id'] = user.id
-            return redirect(url_for('public.hello_world'))
-
+            if user.role is not None and user.role.name == "admin":
+                return redirect(url_for("lots.index"))
+            else:
+                # aqui tenemos que poner la página de inicio para los users
+                return redirect(url_for('public.hello_world'))
     return render_template(
         'login.html',
         form=form,
