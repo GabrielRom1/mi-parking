@@ -1,16 +1,22 @@
-from flask import Blueprint, Response, abort, jsonify, render_template, request, session
+from datetime import datetime, timedelta
+
+from flask import Blueprint, Response, abort, current_app, flash, jsonify, render_template, request, session
+from itsdangerous import BadData, URLSafeTimedSerializer
 
 from app.database import db
 from app.decorators import role_required
-from app.forms.reservation_form import ReservationForm
+from app.forms.reservation_form import CheckoutActionForm, ReservationForm
 from app.models import Lots, Reservation, Spots, User
 from app.services.calendar import build_ics, ics_filename
-from app.services.notifications import send_email
+from app.services.notifications import checkout_action_url, send_email
 from app.services.reservations import (
     ReservationError,
     can_use_area,
+    check_out_reservation,
     chart_columns,
     default_range,
+    extend_reservation,
+    extension_available,
     eligible_lots,
     floor_number,
     is_lot_active,
@@ -212,4 +218,129 @@ def calendar(reservation_id):
         build_ics(reservation),
         mimetype='text/calendar',
         headers={'Content-Disposition': f'attachment; filename={ics_filename(reservation)}'},
+    )
+
+
+def _reservation_from_checkout_token(token):
+    serializer = URLSafeTimedSerializer(
+        current_app.config['SECRET_KEY'],
+        salt='reservation-checkout',
+    )
+    try:
+        payload = serializer.loads(
+            token,
+        )
+    except BadData:
+        abort(404)
+
+    if (
+        not isinstance(payload, dict)
+        or type(payload.get('reservation_id')) is not int
+        or type(payload.get('user_id')) is not int
+        or not isinstance(payload.get('end_time'), str)
+        or payload.get('action') not in ('checkout', 'extend')
+    ):
+        abort(404)
+    try:
+        expected_end = datetime.fromisoformat(payload['end_time'])
+    except ValueError:
+        abort(404)
+
+    reservation = db.session.get(Reservation, payload['reservation_id'])
+    if (
+        reservation is None
+        or reservation.user_id != payload['user_id']
+        or reservation.end_time != expected_end
+    ):
+        abort(404)
+    return reservation, expected_end, payload['action']
+
+
+@reservations_bp.route('/checkout/<token>', methods=['GET', 'POST'])
+def checkout_action(token):
+    reservation, expected_end, token_action = _reservation_from_checkout_token(token)
+    action = request.args.get('action', 'checkout')
+    if action != token_action:
+        abort(400)
+    current = now()
+    if token_action == 'extend' and current >= expected_end:
+        abort(404)
+    checkout_deadline = expected_end + timedelta(
+        minutes=current_app.config['RESERVATION_CHECKOUT_GRACE_MINUTES']
+    )
+    if token_action == 'checkout' and current >= checkout_deadline:
+        abort(404)
+    if token_action == 'extend' and reservation.checkout_reminder_sent_at is None:
+        abort(404)
+    form = CheckoutActionForm()
+
+    if request.method == 'POST':
+        if not form.validate_on_submit():
+            abort(400)
+        if request.form.get('action') != token_action:
+            abort(400)
+        action = token_action
+        if action == 'checkout':
+            try:
+                check_out_reservation(reservation)
+            except ReservationError as error:
+                flash(str(error), 'error')
+            else:
+                flash('Tu salida quedó confirmada. ¡Gracias!', 'success')
+            return render_template(
+                'reservations/checkout.html',
+                reservation=reservation,
+                action='checkout',
+                form=form,
+                can_extend=extension_available(
+                    reservation, expected_end=expected_end
+                ),
+                extension_url=(
+                    checkout_action_url(reservation, 'extend')
+                    if extension_available(
+                        reservation, expected_end=expected_end
+                    )
+                    else None
+                ),
+                checked_out=reservation.check_out_time is not None,
+            )
+        if action == 'extend':
+            try:
+                extend_reservation(reservation, expected_end)
+            except ReservationError as error:
+                db.session.rollback()
+                flash(str(error), 'error')
+            else:
+                flash(
+                    'Tu reservación se extendió por un bloque adicional.',
+                    'success',
+                )
+            return render_template(
+                'reservations/checkout.html',
+                reservation=reservation,
+                action='extend',
+                form=form,
+                can_extend=extension_available(
+                    reservation, expected_end=expected_end
+                ),
+                extension_url=None,
+                checked_out=reservation.check_out_time is not None,
+            )
+        abort(400)
+
+    return render_template(
+        'reservations/checkout.html',
+        reservation=reservation,
+        action=action,
+        form=form,
+        can_extend=extension_available(
+            reservation, expected_end=expected_end
+        ),
+        extension_url=(
+            checkout_action_url(reservation, 'extend')
+            if token_action == 'checkout'
+            and extension_available(reservation, expected_end=expected_end)
+            else None
+        ),
+        checked_out=reservation.check_out_time is not None,
     )

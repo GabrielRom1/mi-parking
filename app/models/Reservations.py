@@ -1,6 +1,8 @@
 # CREATE TABLE reservations(
 from app.database import db
 
+from .Spots import Spots
+
 class Reservation(db.Model):
 	__tablename__ = 'reservations'
 
@@ -32,11 +34,27 @@ class Reservation(db.Model):
 	# 	check_out_time DATETIME NULL,
 	check_out_time = db.Column(db.DateTime, nullable=True)
 
+	# 	checkout_reminder_sent_at DATETIME NULL,
+	checkout_reminder_sent_at = db.Column(db.DateTime, nullable=True)
+
 	# 	cancelation_reason varchar(500) NULL,
 	cancelation_reason = db.Column(db.String(500), nullable=True)
 
 	incident_report = db.relationship('IncidentReport', back_populates='reservation', uselist=False)
 
+
+	@classmethod
+	def get_reserved_spot_ids(cls, floor_ids):
+		"""Return spot IDs with reservations on any of the supplied floors."""
+		if not floor_ids:
+			return set()
+		return {
+			spot_id
+			for (spot_id,) in cls.query.join(Spots)
+			.filter(Spots.lot_id.in_(floor_ids))
+			.with_entities(cls.spot_id)
+			.all()
+		}
 	@classmethod
 	def active_overlapping(cls, start, end):
 		"""Active reservations that share any time with [start, end)."""
@@ -44,6 +62,36 @@ class Reservation(db.Model):
 			cls.status == 'Active',
 			cls.start_time < end,
 			cls.end_time > start,
+		)
+
+	@classmethod
+	def active_without_check_in_before(cls, deadline):
+		"""Active reservations without check-in that started by the deadline."""
+		return cls.query.filter(
+			cls.status == 'Active',
+			cls.check_in_time.is_(None),
+			cls.start_time <= deadline,
+		)
+
+	@classmethod
+	def checked_in_without_checkout_reminder_before(cls, deadline):
+		"""Reservations due for a checkout reminder by deadline."""
+		return cls.query.filter(
+			cls.status == 'Active',
+			cls.check_in_time.isnot(None),
+			cls.check_out_time.is_(None),
+			cls.checkout_reminder_sent_at.is_(None),
+			cls.end_time <= deadline,
+		)
+
+	@classmethod
+	def checked_in_without_checkout_before(cls, deadline):
+		"""Reservations past their checkout grace period without checking out."""
+		return cls.query.filter(
+			cls.status == 'Active',
+			cls.check_in_time.isnot(None),
+			cls.check_out_time.is_(None),
+			cls.end_time <= deadline,
 		)
 
 	@classmethod

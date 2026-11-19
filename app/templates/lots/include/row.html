@@ -1,0 +1,54 @@
+{# One row of the lots table. Included by rows.html, and rendered on its own after a lot is created so the new row can be added without reloading the page. #}
+{% from 'include/icons.html' import icon %}
+<tr data-lot-id="{{ lot.id }}" data-lot-name="{{ lot.name }}" data-sort-key="{{ lot.sort_key }}" data-search="{{ (lot.name ~ ' ' ~ lot.location)|lower }}" data-active="{{ 'true' if lot.is_active else 'false' }}" data-deletion-date="{{ lot.date_to_be_deleted or '' }}" data-deactivation-date="{{ lot.date_to_be_deactivated or '' }}" class="group h-[76px] border-b border-gray-200 bg-white transition-colors duration-200 last:border-b-0 data-[active=false]:bg-black-50 data-[new]:bg-brand-50 motion-reduce:transition-none">
+	<td class="py-3 pr-4 pl-6">
+		<div class="min-w-0">
+			<p class="truncate text-body font-semibold group-data-[active=false]:text-black-500" title="{{ lot.name }}">{{ lot.name }}</p>
+			<p class="mt-0.5 flex items-center gap-1 text-small text-black-500">
+				{# The pin's mass sits high in its box; drop it half a pixel to sit on the text's x-height. #}
+				<span class="translate-y-[0.5px]">{{ icon('map-pin', 'size-[14px]') }}</span>
+				<span class="sr-only">Ubicación:</span>
+				<span class="truncate" title="{{ lot.location }}">{{ lot.location }}</span>
+			</p>
+		</div>
+	</td>
+	<td class="pr-4 text-body tabular-nums">{{ lot.floors }}</td>
+	<td class="pr-4 tabular-nums">
+		<p class="text-body">{{ lot.spots }} {{ 'espacio' if lot.spots == 1 else 'espacios' }}</p>
+		<p class="mt-0.5 text-small text-black-500">{{ lot.accessible }} {{ 'accesible' if lot.accessible == 1 else 'accesibles' }}</p>
+	</td>
+	<td class="pr-4">
+		<div class="flex flex-wrap items-center gap-1.5">
+			{% for role in lot.roles %}
+				<span class="rounded-full bg-brand-50 px-2 py-0.5 text-small font-semibold text-brand">{{ role }}</span>
+			{% endfor %}
+			<span class="rounded-full bg-gray-100 px-2 py-0.5 text-small font-semibold text-black-700">{{ 'Pago' if lot.is_paid else 'Gratis' }}</span>
+		</div>
+	</td>
+	<td class="pr-4">
+		<div class="flex items-center gap-2">
+			<button type="button" role="switch" aria-checked="{{ 'true' if lot.is_active else 'false' }}" aria-label="{{ 'Desactivar' if lot.is_active else 'Activar' }} {{ lot.name }}" data-lot-toggle data-toggle-url="{{ url_for('lots.activate' if not lot.is_active else 'lots.deactivate', lot_id=lot.id) }}" data-delete-preview-url="{{ url_for('lots.preview_deletion', lot_id=lot.id) }}" data-active="{{ 'true' if lot.is_active else 'false' }}" class="group/toggle inline-flex shrink-0 cursor-pointer items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-200 disabled:cursor-wait">
+				<span class="relative h-4 w-7 rounded-full bg-cool-gray transition-colors group-data-[active=true]/toggle:bg-green-600 motion-reduce:transition-none">
+					<span class="absolute top-0.5 left-0.5 size-3 rounded-full bg-white shadow-sm transition-transform group-data-[active=true]/toggle:translate-x-3 motion-reduce:transition-none"></span>
+				</span>
+			</button>
+			<span data-lot-status class="whitespace-nowrap text-small font-semibold {{ 'text-green-600' if lot.is_active and not lot.date_to_be_deleted and not lot.date_to_be_deactivated else 'text-amber-700' if lot.is_active else 'text-black-500' }}">
+				{% if lot.date_to_be_deleted or lot.date_to_be_deactivated %}Programado{% elif lot.is_active %}Activo{% else %}Inactivo{% endif %}
+			</span>
+			<time data-deletion-date-label class="whitespace-nowrap text-small font-semibold text-amber-700" {% if not lot.date_to_be_deleted %}hidden{% endif %}>Elimina {{ lot.date_to_be_deleted }}</time>
+			<time data-deactivation-date-label class="whitespace-nowrap text-small font-semibold text-amber-700" {% if not lot.date_to_be_deactivated %}hidden{% endif %}>Desactiva {{ lot.date_to_be_deactivated }}</time>
+		</div>
+	</td>
+	<td class="pr-6">
+		<div class="flex items-center gap-1.5">
+			<button type="button" class="btn btn-secondary h-9 px-3" data-edit-lot="{{ lot.id }}" data-edit-url="{{ url_for('lots.edit', lot_id=lot.id) }}">
+				{{ icon('pencil', 'size-4') }}
+				Editar<span class="sr-only"> {{ lot.name }}</span>
+			</button>
+			<button type="button" class="btn h-9 border border-brand-700 px-3 text-brand-700 hover:bg-brand-50" data-delete-lot="{{ lot.id }}" data-delete-url="{{ url_for('lots.delete', lot_id=lot.id) }}" data-delete-preview-url="{{ url_for('lots.preview_deletion', lot_id=lot.id) }}">
+				{{ icon('trash', 'size-4') }}
+				Eliminar<span class="sr-only"> {{ lot.name }}</span>
+			</button>
+		</div>
+	</td>
+</tr>

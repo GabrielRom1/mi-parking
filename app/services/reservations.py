@@ -72,7 +72,69 @@ def eligible_lots(user):
 
 
 def is_spot_open(spot, day):
-    return spot.date_to_be_deleted is None or spot.date_to_be_deleted > day
+    deletion_time = spot.date_to_be_deleted
+    if deletion_time is None:
+        return True
+    if isinstance(day, datetime):
+        if isinstance(deletion_time, datetime):
+            return deletion_time > day
+        return datetime.combine(deletion_time, time.min) > day
+    return deletion_time.date() > day if isinstance(deletion_time, datetime) else deletion_time > day
+
+
+def _schedule_limit(spot, lot_limit=None):
+    if lot_limit is None:
+        area = spot.lot
+        limits = [
+            area.date_to_be_deleted,
+            area.date_to_be_deactivated,
+        ]
+        if area.parent is not None:
+            limits.extend([
+                area.parent.date_to_be_deleted,
+                area.parent.date_to_be_deactivated,
+            ])
+        lot_limit = min(
+            (limit for limit in limits if limit is not None),
+            default=None,
+        )
+    limits = [limit for limit in (lot_limit, spot.date_to_be_deleted) if limit is not None]
+    return min(limits) if limits else None
+
+
+def _schedule_limit_details(spot):
+    area = spot.lot
+    schedules = []
+    for level, item in ((0, area.parent), (1, area)):
+        if item is None:
+            continue
+        if item.date_to_be_deleted is not None:
+            schedules.append((
+                item.date_to_be_deleted,
+                level,
+                f'eliminación programada de «{item.name}»',
+            ))
+        if item.date_to_be_deactivated is not None:
+            schedules.append((
+                item.date_to_be_deactivated,
+                level,
+                f'desactivación programada de «{item.name}»',
+            ))
+    if spot.date_to_be_deleted is not None:
+        schedules.append((
+            spot.date_to_be_deleted,
+            2,
+            f'eliminación programada del espacio {spot.id}',
+        ))
+    if not schedules:
+        return None, None
+    scheduled_at, _, description = min(schedules, key=lambda item: (item[0], item[1]))
+    return scheduled_at, description
+
+
+def _reservation_fits_schedule(spot, end, lot_limit=None):
+    scheduled_at = _schedule_limit(spot, lot_limit)
+    return scheduled_at is None or end <= scheduled_at
 
 
 # ========== Time slots ==========
@@ -102,12 +164,12 @@ def slot_state(start, current):
 
 
 def window_days(current=None):
-    """The chart's columns: today, then every day that opens before the window ends."""
+    """The chart's columns: every calendar day touched by the rolling reservation window."""
     current = current or now()
     window_end = _window_end(current)
     days = [current.date()]
     day = current.date() + timedelta(days=1)
-    while _opening(day) < window_end:
+    while day <= window_end.date():
         days.append(day)
         day += timedelta(days=1)
     return days
@@ -199,18 +261,34 @@ def chart_columns(user, lot=None, current=None):
     lots = [lot] if lot is not None else eligible_lots(user)
     areas = [area for each in lots for area in usable_areas(user, each)]
     days = window_days(current)
-    all_spots = _open_spots(areas, days[0])
+    all_spots = _open_spots(
+        areas, datetime.combine(days[0], time.min)
+    )
     ranges = active_reservations_by_spot(
         [spot.id for spot in all_spots], _opening(days[0]), _closing(days[-1])
     )
 
     columns = []
     for day in days:
-        spots = [spot for spot in all_spots if is_spot_open(spot, day)]
+        spots = [
+            spot
+            for spot in all_spots
+            if is_spot_open(spot, _opening(day))
+        ]
         cells = []
         for start in slot_starts(day):
             end = start + _slot()
-            free = sum(1 for spot in spots if not _is_taken(ranges[spot.id], start, end))
+            available_spots = [
+                spot
+                for spot in spots
+                if is_spot_open(spot, start)
+                and _reservation_fits_schedule(spot, end)
+            ]
+            free = sum(
+                1
+                for spot in available_spots
+                if not _is_taken(ranges[spot.id], start, end)
+            )
             if not free:
                 level = 0
             else:
@@ -220,7 +298,7 @@ def chart_columns(user, lot=None, current=None):
                 'end': end,
                 'state': slot_state(start, current),
                 'free': free,
-                'total': len(spots),
+                'total': len(available_spots),
                 'level': level,
             })
         columns.append({'day': day, 'cells': cells})
@@ -229,7 +307,15 @@ def chart_columns(user, lot=None, current=None):
 
 def lot_summary(user, lot, start, end):
     """A lot card for the chosen time: its spots, and how many are free for the whole time."""
-    spots = _open_spots(usable_areas(user, lot), start.date()) if is_lot_active(lot) else []
+    spots = (
+        [
+            spot
+            for spot in _open_spots(usable_areas(user, lot), start)
+            if _reservation_fits_schedule(spot, end)
+        ]
+        if is_lot_active(lot)
+        else []
+    )
     ranges = active_reservations_by_spot([spot.id for spot in spots], start, end)
     free = [spot for spot in spots if not ranges[spot.id]]
     return {
@@ -261,7 +347,11 @@ def spot_grid(user, lot, start, end, current=None):
     current = current or now()
     day = start.date()
     areas = [area for area in usable_areas(user, lot) if is_lot_active(area)]
-    spots = _open_spots(areas, day)
+    spots = [
+        spot
+        for spot in _open_spots(areas, start)
+        if _reservation_fits_schedule(spot, end)
+    ]
     ranges = active_reservations_by_spot([spot.id for spot in spots], _opening(day), _closing(day))
 
     floors = []
@@ -310,15 +400,22 @@ def _validate_times(start, end, current):
         raise ReservationError(f'Escoge horas en intervalos de {slot_minutes} minutos.')
 
 
-def _validate_spot(user, spot, start):
+def _validate_spot(user, spot, start, end):
     if spot is None or spot.lot is None:
         raise ReservationError('Ese espacio no existe.')
     if not can_use_area(user, spot.lot):
         raise ReservationError('Tu rol no tiene acceso a este lote.')
     if not is_lot_active(spot.lot):
         raise ReservationError('Este lote está inactivo y no acepta reservaciones.')
-    if not is_spot_open(spot, start.date()):
+    if not is_spot_open(spot, start):
         raise ReservationError('Este espacio no está disponible para esa fecha.')
+    lot_limit = Lots.reservable_until(spot.lot_id)
+    if not _reservation_fits_schedule(spot, end, lot_limit=lot_limit):
+        scheduled_at, schedule_description = _schedule_limit_details(spot)
+        raise ReservationError(
+            f'La reservación debe terminar antes de la {schedule_description} '
+            f'({scheduled_at:%Y-%m-%d %H:%M}).'
+        )
     if not spot.is_reservable_by(user):
         raise ReservationError('Este espacio está reservado para personas que necesitan un espacio accesible.')
 
@@ -333,7 +430,7 @@ def reserve(user, spot_id, start, end):
     current = now()
     _validate_times(start, end, current)
     spot = db.session.get(Spots, spot_id)
-    _validate_spot(user, spot, start)
+    _validate_spot(user, spot, start, end)
 
     # Take the database write lock before checking for overlaps, so two people
     # reserving the same spot at once can't both pass the check.
@@ -353,6 +450,87 @@ def reserve(user, spot_id, start, end):
     except Exception:
         db.session.rollback()
         raise
+    return reservation
+
+def _extension_end(reservation):
+    extension_end = reservation.end_time + _slot()
+    closing = _closing(reservation.end_time.date())
+    return extension_end if extension_end <= closing else None
+
+
+def extension_available(reservation, expected_end=None, current=None):
+    """Whether the next configured time slot can be added to this reservation."""
+    current = current or now()
+    if (
+        reservation.status != 'Active'
+        or reservation.check_in_time is None
+        or reservation.check_out_time is not None
+        or reservation.end_time <= current
+        or (expected_end is not None and reservation.end_time != expected_end)
+    ):
+        return False
+
+    extension_end = _extension_end(reservation)
+    if extension_end is None:
+        return False
+    spot = db.session.get(Spots, reservation.spot_id)
+    if spot is None or not _reservation_fits_schedule(spot, extension_end):
+        return False
+
+    overlapping = Reservation.active_overlapping(
+        reservation.end_time, extension_end
+    )
+    if overlapping.filter(Reservation.spot_id == reservation.spot_id).first():
+        return False
+    if overlapping.filter(Reservation.user_id == reservation.user_id).first():
+        return False
+    return True
+
+
+def extend_reservation(reservation, expected_end):
+    """Extend by one configured slot, rechecking availability before saving."""
+    try:
+        db.session.execute(
+            db.update(Spots)
+            .where(Spots.id == reservation.spot_id)
+            .values(id=Spots.id)
+        )
+        db.session.refresh(reservation, with_for_update=True)
+        if not extension_available(reservation, expected_end=expected_end):
+            raise ReservationError(
+                'Ya no es posible extender esta reservación por un bloque.'
+            )
+        extension_end = _extension_end(reservation)
+        if extension_end is None:
+            raise ReservationError(
+                'Ya no es posible extender esta reservación por un bloque.'
+            )
+        reservation.end_time = extension_end
+        reservation.checkout_reminder_sent_at = None
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return reservation
+
+
+def check_out_reservation(reservation):
+    """Record the user's checkout and complete an active, checked-in reservation."""
+    checkout_deadline = reservation.end_time + timedelta(
+        minutes=current_app.config['RESERVATION_CHECKOUT_GRACE_MINUTES']
+    )
+    if (
+        reservation.status != 'Active'
+        or reservation.check_in_time is None
+        or reservation.check_out_time is not None
+        or now() >= checkout_deadline
+    ):
+        raise ReservationError(
+            'Esta reservación no está disponible para confirmar la salida.'
+        )
+    reservation.check_out_time = now()
+    reservation.status = 'Completed'
+    db.session.commit()
     return reservation
 
 

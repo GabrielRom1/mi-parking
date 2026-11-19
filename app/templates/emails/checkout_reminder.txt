@@ -1,0 +1,11 @@
+Hola {{ user.first_name }},
+
+Tu reservación #{{ reservation.id }} está por terminar. Cuando hayas salido,
+confirma tu salida aquí:
+{{ checkout_url }}
+
+{% if extension_url %}El espacio está disponible para el siguiente bloque. Si deseas
+extender tu reservación por un bloque adicional, confirma aquí:
+{{ extension_url }}
+
+{% endif %}MiParking

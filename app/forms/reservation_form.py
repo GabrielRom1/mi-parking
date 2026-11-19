@@ -10,3 +10,7 @@ class ReservationForm(FlaskForm):
     spot_id = IntegerField(widget=HiddenInput(), validators=[DataRequired()])
     start_time = DateTimeField(format='%Y-%m-%dT%H:%M', widget=HiddenInput(), validators=[DataRequired()])
     end_time = DateTimeField(format='%Y-%m-%dT%H:%M', widget=HiddenInput(), validators=[DataRequired()])
+
+
+class CheckoutActionForm(FlaskForm):
+    """CSRF protection for signed-link checkout and extension confirmations."""
