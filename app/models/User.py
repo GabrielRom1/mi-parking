@@ -33,6 +33,11 @@ class User(db.Model):
 		return cls.query.filter_by(id=user_id).first()
 
 	@classmethod
+	def get_admin_users(cls):
+		from app.models.Roles import Role
+		return cls.query.join(Role).filter(Role.name == 'admin').all()
+
+	@classmethod
 	def get_user_by_email(cls, email):
 		normalized_email = email.strip().lower()
 		return cls.query.filter(

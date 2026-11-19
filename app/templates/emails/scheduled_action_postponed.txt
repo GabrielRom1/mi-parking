@@ -1,0 +1,7 @@
+Acción programada pospuesta
+
+La acción {{ action }} programada para el objetivo {{ target.id }} no pudo completarse porque existen reservaciones activas o futuras.
+
+La nueva fecha fue movida al {{ new_date.isoformat() }}.
+
+Reservaciones bloqueantes: {{ blockers|length }}

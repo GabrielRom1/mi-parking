@@ -72,6 +72,20 @@ def send_checkout_timeout_email(user, reservation):
     )
 
 
+def send_scheduled_action_admin_notice(admin, target, action, new_date, blockers=()):
+    """Notify one administrator that a scheduled lot/spot action was postponed."""
+    return send_email(
+        admin.email,
+        'Acción programada pospuesta en MiParking',
+        'scheduled_action_postponed',
+        admin=admin,
+        target=target,
+        action=action,
+        new_date=new_date,
+        blockers=blockers,
+    )
+
+
 def send_checkout_reminder_email(
     user, reservation, checkout_url, extension_url=None
 ):
