@@ -7,8 +7,10 @@ from app.database import db, init_db
 # from app.extensions import bcrypt
 
 from flask_bcrypt import Bcrypt
+from flask_mailman import Mail
 
 bcrypt = Bcrypt()
+mail = Mail()
 
 
 
@@ -18,15 +20,18 @@ def create_app(config_class=Config):
 
     os.makedirs(app.instance_path, exist_ok=True)
     bcrypt.init_app(app)
+    mail.init_app(app)
     init_db(app, bcrypt)
 
     from app.routes.auth import auth_bp
     from app.routes.public import public_bp
     from app.routes.lots import lots_bp
+    from app.routes.reservations import reservations_bp
 
     app.register_blueprint(auth_bp, url_prefix="/")
     app.register_blueprint(public_bp, url_prefix="/")
     app.register_blueprint(lots_bp, url_prefix="/admin/lots")
+    app.register_blueprint(reservations_bp, url_prefix="/reservations")
 
     return app
 

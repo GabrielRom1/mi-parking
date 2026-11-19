@@ -1,0 +1,77 @@
+{# Option B · B1: pick a spot in the lot for the time picked on the chart. #}
+{% from 'reservations/include/icons.html' import icon %}
+{% from 'reservations/include/dialog.html' import close_button, primary_button, secondary_button %}
+{% set tile_classes = {
+	'available': 'border-green-600/50 bg-green-50 text-green-800 hover:border-green-700 data-[selected]:border-brand data-[selected]:bg-brand data-[selected]:text-white',
+	'reserved': 'border-gray-200 bg-white text-brand',
+	'full': 'border-gray-100 bg-gray-100 text-ink/35',
+} %}
+{# Open the floor of the spot picked before (Cambiar espacio), or the first floor. #}
+{% set ns = namespace(open_floor=floors[0].number if floors else none) %}
+{% for floor in floors %}{% for tile in floor.spots %}{% if tile.id == selected and tile.selectable %}{% set ns.open_floor = floor.number %}{% endif %}{% endfor %}{% endfor %}
+{% set open_floor = ns.open_floor %}
+
+<div class="flex flex-col gap-4 p-5 sm:p-7" data-step="choose">
+	<div class="flex items-start justify-between gap-4">
+		<div>
+			<h2 class="font-['Barlow_Semi_Condensed',sans-serif] text-[26px] leading-8 font-semibold">Elegir un espacio</h2>
+			<p class="text-[14px] text-ink/70">{{ lot.name }} · {{ start | fecha_corta }} · {{ start | hora }} – {{ end | hora }}</p>
+		</div>
+		{{ close_button() }}
+	</div>
+
+	{% if not lot_active %}
+		<p class="rounded-lg bg-gray-100 px-4 py-3 font-semibold text-ink/70">Este lote está inactivo y no acepta reservaciones.</p>
+	{% elif not floors %}
+		<p class="rounded-lg bg-gray-100 px-4 py-3 font-semibold text-ink/70">Este lote no tiene espacios disponibles para tu rol.</p>
+	{% else %}
+		<div class="flex w-fit max-w-full flex-wrap gap-1 rounded-lg bg-gray-100 p-1" role="tablist" aria-label="Pisos">
+			{% for floor in floors %}
+				<button type="button" role="tab" data-floor-tab="{{ floor.number }}" aria-selected="{{ 'true' if floor.number == open_floor else 'false' }}"
+					class="cursor-pointer rounded-md px-3 py-1.5 text-[14px] font-semibold text-ink/70 hover:text-ink aria-selected:bg-white aria-selected:text-ink aria-selected:shadow-sm">Piso {{ floor.number }} · {{ floor.free }} {{ 'libre' if floor.free == 1 else 'libres' }}</button>
+			{% endfor %}
+		</div>
+
+		<ul class="flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-ink/70">
+			<li class="flex items-center gap-1.5"><span class="size-3 rounded-[3px] border border-green-600/50 bg-green-50"></span>Disponible</li>
+			<li class="flex items-center gap-1.5"><span class="size-3 rounded-[3px] border border-gray-200 bg-white"></span><span class="text-brand">Reservado en este horario</span></li>
+			<li class="flex items-center gap-1.5"><span class="size-3 rounded-[3px] bg-gray-100"></span>Sin horario libre hoy</li>
+			<li class="flex items-center gap-1.5"><span class="size-3 rounded-[3px] bg-brand"></span>Seleccionado</li>
+			<li class="flex items-center gap-1.5">{{ icon('accessibility', 'size-3.5') }}Accesible</li>
+		</ul>
+
+		{% for floor in floors %}
+			<div data-floor-panel="{{ floor.number }}" role="tabpanel" {% if floor.number != open_floor %}hidden{% endif %}>
+				<div class="max-h-[264px] overflow-y-auto rounded-xl bg-gray-50 p-3">
+					<div class="grid grid-cols-5 gap-2 sm:grid-cols-10">
+						{% for tile in floor.spots %}
+							<button type="button" data-spot-tile data-spot-id="{{ tile.id }}" data-label="{{ tile.label }}" data-floor="{{ floor.number }}"
+								{% if tile.id == selected and tile.selectable %}data-selected{% endif %}
+								{% if not tile.selectable %}disabled{% endif %}
+								title="Espacio {{ tile.label }}{{ ' · accesible' if tile.is_accessible }}{{ ' · solo para quien necesita un espacio accesible' if tile.state == 'available' and not tile.selectable }}"
+								class="flex h-9 items-center justify-center gap-0.5 rounded-md border text-[13px] font-semibold tabular-nums {{ tile_classes[tile.state] }} {{ 'cursor-pointer' if tile.selectable else 'cursor-not-allowed' }} {{ 'opacity-45' if tile.state == 'available' and not tile.selectable }}">
+								{% if tile.is_accessible %}{{ icon('accessibility', 'size-3') }}{% endif %}{{ tile.label }}
+							</button>
+						{% endfor %}
+					</div>
+				</div>
+				{% if floor.spots | length > 40 %}
+					<p class="mt-2 text-[13px] text-ink/60">Mostrando {{ floor.spots | length }} espacios del Piso {{ floor.number }}. Desplázate en la cuadrícula para ver más.</p>
+				{% endif %}
+			</div>
+		{% endfor %}
+
+		<div data-spot-summary data-time="{{ start | hora }} – {{ end | hora }}" class="flex items-start gap-3 rounded-xl bg-[#fdeef0] px-4 py-3">
+			{{ icon('car', 'size-5 mt-0.5 text-brand') }}
+			<div>
+				<p data-spot-summary-title class="font-semibold">Escoge un espacio disponible</p>
+				<p data-spot-summary-text class="text-[14px] text-ink/70">Los espacios en verde están libres durante todo tu horario ({{ start | hora }} – {{ end | hora }}).</p>
+			</div>
+		</div>
+	{% endif %}
+
+	<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+		<button type="button" data-close-dialog class="{{ secondary_button }}">Atrás</button>
+		<button type="button" data-continue disabled class="{{ primary_button }}">{{ icon('chevron-right') }}Continuar</button>
+	</div>
+</div>
