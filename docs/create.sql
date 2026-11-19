@@ -20,7 +20,8 @@ CREATE TABLE lots (
 	name varchar(50) NOT NULL UNIQUE,
 	location varchar(255) NOT NULL,
 	is_paid TINYINT DEFAULT 0,
-	date_to_be_deleted DATE NULL,
+	date_to_be_deleted DATETIME NULL,
+	date_to_be_deactivated DATETIME NULL,
 	is_active TINYINT DEFAULT 1,
 	parent_id int NULL,
 	accessible TINYINT DEFAULT 0,
@@ -32,7 +33,7 @@ CREATE TABLE lots (
 CREATE TABLE spots (
 	id int AUTO_INCREMENT PRIMARY KEY,
 	is_accessible TINYINT DEFAULT 0,
-	date_to_be_deleted DATE NULL,
+	date_to_be_deleted DATETIME NULL,
 	lot_id int NULL,
 	FOREIGN KEY (lot_id) REFERENCES lots(id)
 );
