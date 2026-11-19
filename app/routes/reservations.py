@@ -2,8 +2,10 @@ from flask import Blueprint, Response, abort, jsonify, render_template, request,
 
 from app.database import db
 from app.decorators import role_required
+from app.forms.my_reservations_form import CancelReservationForm, CheckOutForm
 from app.forms.reservation_form import ReservationForm
 from app.models import Lots, Reservation, Spots, User
+from app.services import my_reservations
 from app.services.calendar import build_ics, ics_filename
 from app.services.notifications import send_email
 from app.services.reservations import (
@@ -213,3 +215,44 @@ def calendar(reservation_id):
         mimetype='text/calendar',
         headers={'Content-Disposition': f'attachment; filename={ics_filename(reservation)}'},
     )
+
+
+# My Reservations routes
+
+
+
+@reservations_bp.route('/<int:reservation_id>/cancel', methods=['POST'])
+@role_required()
+def cancel(reservation_id):
+    form = CancelReservationForm()
+    if not form.validate():
+        return jsonify(message=_form_error_message(form)), 422
+    try:
+        my_reservations.cancel(_current_user(), reservation_id, form.reason.data)
+    except ReservationError as error:
+        return jsonify(message=str(error)), 422
+
+    # TODO REQ.3.2 step 4: send the cancellation email with send_email()
+    # (needs emails/reservation_cancelled.txt and .html, like reservation_confirmed).
+    return jsonify(message='Cancelamos tu reservación.'), 200
+
+
+@reservations_bp.route('/<int:reservation_id>/check-out', methods=['POST'])
+@role_required()
+def check_out(reservation_id):
+    form = CheckOutForm()
+    if not form.validate():
+        return jsonify(message=_form_error_message(form)), 422
+    try:
+        my_reservations.check_out(_current_user(), reservation_id)
+    except ReservationError as error:
+        return jsonify(message=str(error)), 422
+
+    return jsonify(message='Registramos tu salida.'), 200
+
+
+def _form_error_message(form):
+    """Same messages as create() gives for an invalid form."""
+    if 'csrf_token' in form.errors:
+        return 'Tu sesión expiró. Recarga la página e inténtalo de nuevo.'
+    return 'No pudimos completar la acción. Inténtalo de nuevo.'
