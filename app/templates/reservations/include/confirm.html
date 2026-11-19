@@ -1,0 +1,42 @@
+{# Option B · B2: confirm the picked spot and time. #}
+{% from 'reservations/include/icons.html' import icon %}
+{% from 'reservations/include/dialog.html' import close_button, details_card, primary_button, secondary_button %}
+
+<form data-confirm-form action="{{ url_for('reservations.create') }}" method="post" class="flex flex-col gap-4 p-5 sm:p-7" data-step="confirm">
+	{{ form.hidden_tag() }}
+	<div class="flex items-start justify-between gap-4">
+		<div>
+			<h2 class="font-['Barlow_Semi_Condensed',sans-serif] text-[26px] leading-8 font-semibold">Confirmar reservación</h2>
+			<p class="text-[14px] text-ink/70">¿Reservar {{ lot.name }} para el {{ start | fecha }} de {{ start.year }}?</p>
+		</div>
+		{{ close_button() }}
+	</div>
+
+	{{ details_card([
+		('Lote', lot.name),
+		('Ubicación', lot.location),
+		('Fecha', (start | fecha | capitalize) ~ ' de ' ~ start.year),
+		('Hora', (start | hora) ~ ' – ' ~ (end | hora)),
+	]) }}
+
+	<p class="text-[13px] text-ink/60">Para cambiar el horario, vuelve y arrastra un nuevo rango en la gráfica de disponibilidad.</p>
+
+	<div class="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-xl bg-[#fdeef0] px-4 py-3">
+		{{ icon('car', 'size-5 mt-0.5 text-brand') }}
+		<div class="min-w-0 flex-1">
+			<p class="font-semibold">Espacio {{ label }} · Piso {{ floor }} — escogiste este espacio</p>
+			<p class="text-[14px] text-ink/70">Disponible durante todo tu horario.{% if spot.is_accessible %} Es un espacio accesible.{% endif %}</p>
+		</div>
+		<button type="button" data-change-spot class="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 max-sm:basis-full max-sm:pl-8 text-[14px] font-semibold hover:bg-white/70">{{ icon('pencil', 'size-3.5') }}Cambiar espacio</button>
+	</div>
+
+	<div data-confirm-error hidden role="alert" class="flex items-start gap-2 rounded-lg border border-[#b00020] bg-[#fff0f2] px-3 py-3 text-[#b00020]">
+		{{ icon('alert-circle', 'size-5 mt-px') }}
+		<p data-confirm-error-text class="font-semibold"></p>
+	</div>
+
+	<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+		<button type="button" data-close-dialog class="{{ secondary_button }}">Cancelar</button>
+		<button type="submit" class="{{ primary_button }}">{{ icon('circle-check') }}Confirmar</button>
+	</div>
+</form>
