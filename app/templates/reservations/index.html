@@ -1,0 +1,89 @@
+{% extends "reservations/layout.html" %}
+{% from 'reservations/include/icons.html' import icon %}
+
+{% set active_nav = 'reserve' %}
+{% set control_class = "h-11 rounded-lg border border-gray-300 bg-white text-ink" %}
+
+{% block title %}Reservar un espacio - MiParking{% endblock %}
+
+{% block content %}
+<div data-reserve-page
+	data-start="{{ start.isoformat(timespec='minutes') if start else '' }}" data-end="{{ end.isoformat(timespec='minutes') if end else '' }}"
+	data-base-url="{{ url_for('reservations.index') }}" data-chart-url="{{ url_for('reservations.chart') }}" data-lots-url="{{ url_for('reservations.lots') }}"
+	class="flex flex-col gap-6">
+
+	<div class="flex flex-col gap-1.5">
+		<h1 class="font-['Barlow_Semi_Condensed',sans-serif] text-[36px] leading-10 font-semibold">Reservar un espacio</h1>
+		<p class="text-ink/70">Reserva hasta {{ config.RESERVATION_WINDOW_HOURS }} horas antes. Arrastra sobre la gráfica para escoger un horario y luego reserva un lote.{% if role_name %} Solo ves los lotes abiertos para {{ role_name }}.{% endif %}</p>
+	</div>
+
+	{# TODO REQ.5.1/5.2: search, sort, the accessible filter and Quick Find are only drawn for now. #}
+	<div class="flex flex-wrap items-center gap-3">
+		<label class="relative w-full sm:w-[360px]">
+			<span class="sr-only">Buscar lotes</span>
+			<span class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink/50">{{ icon('search') }}</span>
+			<input type="search" placeholder="Buscar lotes por nombre o ubicación…" class="{{ control_class }} w-full pr-3 pl-9 outline-none placeholder:text-ink/45 focus:border-brand focus:ring-4 focus:ring-brand/15">
+		</label>
+		<button type="button" class="{{ control_class }} inline-flex items-center gap-2 px-3.5 hover:bg-gray-50">
+			{{ icon('arrow-up-down') }}Orden: Más disponibles{{ icon('chevron-down', 'size-4 text-ink/60') }}
+		</button>
+		<label class="{{ control_class }} inline-flex cursor-pointer items-center gap-2 px-3.5 hover:bg-gray-50">
+			<input type="checkbox" class="size-4 accent-brand">Solo espacios accesibles
+		</label>
+		<button type="button" class="ml-auto inline-flex h-11 items-center gap-2 rounded-lg bg-brand px-5 font-semibold text-white transition hover:bg-[#c8002c] max-sm:w-full max-sm:justify-center">
+			{{ icon('zap') }}Búsqueda rápida
+		</button>
+	</div>
+
+	<div class="grid items-start gap-6 lg:grid-cols-[minmax(0,37fr)_minmax(0,63fr)] lg:gap-8">
+		<section class="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6" aria-labelledby="availability-title">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<h2 id="availability-title" class="font-['Barlow_Semi_Condensed',sans-serif] text-[24px] leading-8 font-semibold">Disponibilidad</h2>
+				<label class="relative">
+					<span class="sr-only">Lote en la gráfica</span>
+					<span class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2">{{ icon('layers') }}</span>
+					<select data-chart-lot class="h-10 max-w-[220px] cursor-pointer appearance-none truncate rounded-lg border border-gray-300 bg-white pr-9 pl-9 font-semibold outline-none focus:border-brand focus:ring-4 focus:ring-brand/15">
+						<option value="">Todos los lotes</option>
+						{% for lot in all_lots %}<option value="{{ lot.id }}">{{ lot.name }}</option>{% endfor %}
+					</select>
+					<span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-ink/60">{{ icon('chevron-down') }}</span>
+				</label>
+			</div>
+
+			<p class="mt-4 flex items-start gap-2 rounded-lg bg-[#f1efea] px-3 py-2.5 text-[14px] text-ink/80">
+				{{ icon('clock', 'size-4 mt-[3px]') }}
+				<span>Reservaciones abiertas por las próximas {{ config.RESERVATION_WINDOW_HOURS }} horas · hasta {{ window_end | fecha_corta }} · {{ window_end | hora }}</span>
+			</p>
+
+			<div data-chart class="mt-5">
+				{% include 'reservations/include/chart.html' %}
+			</div>
+
+			<div data-range-summary class="mt-5 flex items-start gap-3 rounded-xl bg-[#fdeef0] px-4 py-3">
+				{{ icon('clock', 'size-5 mt-0.5 text-brand') }}
+				<div>
+					<p data-range-label class="font-semibold">{% if start %}{{ start | fecha_corta }} · {{ start | hora }} – {{ end | hora }}{% else %}Escoge un horario{% endif %}</p>
+					<p class="text-[14px] text-ink/70">Arrastra sobre la gráfica para cambiar el horario</p>
+				</div>
+			</div>
+
+			{# TODO REQ.5.1: Quick Find in the selected time. #}
+			<button type="button" class="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white font-semibold hover:bg-gray-50">
+				{{ icon('zap') }}Búsqueda rápida en este horario
+			</button>
+		</section>
+
+		<section data-lots aria-live="polite" aria-label="Lotes">
+			{% include 'reservations/include/lots.html' %}
+		</section>
+	</div>
+</div>
+
+{# One dialog for the three reservation steps (Figma Option B): choose a spot, confirm, confirmed. #}
+<dialog data-reserve-dialog aria-label="Reservar un espacio"
+	class="m-auto max-h-[calc(100vh-32px)] w-[680px] max-w-[calc(100vw-32px)] overflow-y-auto rounded-2xl bg-white p-0 text-[15px] leading-[22px] text-ink shadow-[0_16px_48px_rgb(38_28_2/0.18)] backdrop:bg-ink/45">
+	<div data-dialog-body class="font-['Source_Sans_3',system-ui,sans-serif]"></div>
+</dialog>
+
+<script src="{{ url_for('static', filename='js/reservations.js') }}" defer></script>
+{% endblock %}

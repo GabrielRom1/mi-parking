@@ -1,0 +1,14 @@
+Hola {{ user.first_name }},
+
+Tu reservación en MiParking está confirmada.
+
+Reservación: #{{ reservation.id }}
+Lote: {{ lot.name }}
+Espacio: {{ label }} · Piso {{ floor }}{% if reservation.spot.is_accessible %} (accesible){% endif %}
+Dirección: {{ lot.location }}
+Fecha: {{ reservation.start_time | fecha }}
+Horario: {{ reservation.start_time | hora }} – {{ reservation.end_time | hora }}
+
+Adjuntamos un archivo .ics para que la añadas a tu calendario.
+
+MiParking
