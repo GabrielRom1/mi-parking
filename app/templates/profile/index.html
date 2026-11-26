@@ -1,0 +1,119 @@
+{# Admins see the page under the admin header and everyone else under the user header. #}
+{% extends 'admin/layout.html' if user.is_admin else 'reservations/layout.html' %}
+{% from 'include/icons.html' import icon as profile_icon %}
+
+{% set role_names = {'estudiante': 'Estudiante', 'empleado': 'Empleado', 'admin': 'Administrador'} %}
+{% set label_class = "text-[13px] leading-[18px] font-semibold text-black-700" %}
+{% set input_class = "h-10 w-full rounded-lg border border-cool-gray bg-white px-3 text-[15px] text-ink outline-none placeholder:text-black-500 focus:border-brand focus:ring-4 focus:ring-brand-100 aria-invalid:border-brand-700" %}
+{% set help_class = "text-[13px] leading-[18px] text-black-500" %}
+{% set card_class = "rounded-2xl border border-gray-200 bg-white p-5 sm:p-6" %}
+
+{% macro errors(field) -%}
+	{% for error in field.errors %}
+		<p id="{{ field.id }}-error" class="flex items-start gap-1 text-[13px] leading-[18px] text-brand-700">
+			<span class="translate-y-[2px]">{{ profile_icon('alert-circle', 'size-[14px]') }}</span>
+			<span>{{ error }}</span>
+		</p>
+	{% endfor %}
+{%- endmacro %}
+
+{% macro text_field(field, autocomplete, help=none, required=true) -%}
+	<div class="flex flex-col gap-1.5">
+		<label for="{{ field.id }}" class="{{ label_class }}">{{ field.label.text }}{% if required %} *{% endif %}</label>
+		{{ field(class_=input_class, autocomplete=autocomplete, **({'aria-invalid': 'true', 'aria-describedby': field.id ~ '-error'} if field.errors else ({'aria-describedby': field.id ~ '-help'} if help else {}))) }}
+		{% if help %}<p id="{{ field.id }}-help" class="{{ help_class }}">{{ help }}</p>{% endif %}
+		{{ errors(field) }}
+	</div>
+{%- endmacro %}
+
+{% block title %}Mi perfil - MiParking{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-1.5">
+	<h1 class="font-display text-[36px] leading-10 font-semibold">Mi perfil</h1>
+	<p class="text-ink/70">Actualiza tu información personal y tu contraseña. Los cambios se aplican de inmediato.</p>
+</div>
+
+<div class="grid items-start gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
+	<section class="{{ card_class }} flex flex-col gap-4" aria-label="Resumen de la cuenta">
+		<div class="flex items-center gap-3">
+			<span class="grid size-14 shrink-0 place-items-center rounded-full bg-brand-50 text-[18px] font-semibold text-brand" aria-hidden="true">{{ (user.first_name[:1] ~ user.last_name[:1]) | upper }}</span>
+			<div class="min-w-0">
+				<p class="truncate text-[17px] font-semibold">{{ user.first_name }} {{ user.last_name }}</p>
+				<p class="truncate text-[13px] leading-[18px] text-black-500">{{ user.email }}</p>
+			</div>
+		</div>
+		<dl class="flex flex-col gap-3 border-t border-gray-200 pt-4 text-[15px]">
+			<div class="flex items-center justify-between gap-3">
+				<dt class="text-black-700">Rol</dt>
+				<dd class="rounded-full bg-gray-100 px-2.5 py-0.5 text-[13px] font-semibold">{{ role_names.get(user.role.name, user.role.name) if user.role else 'Sin rol' }}</dd>
+			</div>
+			{% if not user.is_admin %}
+				<div class="flex items-center justify-between gap-3">
+					<dt class="text-black-700">Espacio accesible</dt>
+					<dd class="font-semibold">{{ 'Sí' if user.requires_accessible_spot else 'No' }}</dd>
+				</div>
+			{% endif %}
+		</dl>
+		<p class="{{ help_class }}">Tu rol no se puede cambiar desde aquí.{% if not user.is_admin %} Si es incorrecto, comunícate con un administrador.{% endif %}</p>
+	</section>
+
+	<div class="flex flex-col gap-6">
+		<section id="informacion" class="{{ card_class }} scroll-mt-6" aria-labelledby="info-title">
+			<div class="mb-5 flex items-center gap-2.5">
+				<span class="grid size-9 place-items-center rounded-lg bg-gray-100 text-black-700">{{ profile_icon('user', 'size-[18px]') }}</span>
+				<h2 id="info-title" class="font-display text-[22px] leading-7 font-semibold">Información personal</h2>
+			</div>
+			<form method="post" action="{{ url_for('profile.update_info') }}#informacion" class="flex flex-col gap-4" novalidate>
+				{{ info_form.hidden_tag() }}
+				<div class="grid gap-4 sm:grid-cols-2">
+					{{ text_field(info_form.first_name, 'given-name') }}
+					{{ text_field(info_form.last_name, 'family-name') }}
+				</div>
+				{{ text_field(info_form.email, 'email') }}
+
+				{% if 'requires_accessible_spot' in info_form %}
+					<fieldset class="flex flex-col gap-1.5">
+						<legend class="{{ label_class }} mb-1.5">{{ info_form.requires_accessible_spot.label.text }} *</legend>
+						<div class="flex flex-wrap gap-3">
+							{% for option in info_form.requires_accessible_spot %}
+								<label class="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-cool-gray bg-white px-3.5 has-[:checked]:border-brand has-[:checked]:bg-brand-50">
+									{{ option(class_='size-4 accent-brand') }}{{ option.label.text }}
+								</label>
+							{% endfor %}
+						</div>
+						<p class="{{ help_class }}">Define si ves espacios accesibles al buscar y reservar. Tus reservaciones actuales no cambian.</p>
+						{{ errors(info_form.requires_accessible_spot) }}
+					</fieldset>
+				{% endif %}
+
+				<div class="border-t border-gray-200 pt-4">
+					{{ text_field(info_form.current_password, 'current-password', 'Solo se necesita si cambias tu correo electrónico.', required=false) }}
+				</div>
+
+				<div class="flex justify-end">
+					<button type="submit" class="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg bg-brand px-5 font-semibold text-white transition hover:bg-brand-600 max-sm:w-full">Guardar cambios</button>
+				</div>
+			</form>
+		</section>
+
+		<section id="contrasena" class="{{ card_class }} scroll-mt-6" aria-labelledby="password-title">
+			<div class="mb-5 flex items-center gap-2.5">
+				<span class="grid size-9 place-items-center rounded-lg bg-gray-100 text-black-700">{{ profile_icon('lock', 'size-[18px]') }}</span>
+				<h2 id="password-title" class="font-display text-[22px] leading-7 font-semibold">Contraseña</h2>
+			</div>
+			<form method="post" action="{{ url_for('profile.update_password') }}#contrasena" class="flex flex-col gap-4" novalidate>
+				{{ password_form.hidden_tag() }}
+				{{ text_field(password_form.current_password, 'current-password') }}
+				<div class="grid gap-4 sm:grid-cols-2">
+					{{ text_field(password_form.new_password, 'new-password', 'Al menos 8 caracteres, una mayúscula, un número y uno de: ? ! # $ &') }}
+					{{ text_field(password_form.confirm_password, 'new-password') }}
+				</div>
+				<div class="flex justify-end">
+					<button type="submit" class="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg border border-cool-gray bg-white px-5 font-semibold transition hover:bg-gray-50 max-sm:w-full">Actualizar contraseña</button>
+				</div>
+			</form>
+		</section>
+	</div>
+</div>
+{% endblock %}
