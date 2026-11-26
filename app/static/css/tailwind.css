@@ -3,11 +3,10 @@
 @layer theme, base, components, utilities;
 @layer theme {
   :root, :host {
-    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-      "Noto Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
-      "Segoe UI Symbol", "Noto Color Emoji";
-    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-      "Courier New", monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial,
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
     --color-red-50: oklch(97.1% 0.013 17.38);
     --color-red-700: oklch(50.5% 0.213 27.518);
     --color-amber-700: oklch(55.5% 0.163 48.998);
@@ -74,7 +73,7 @@
     line-height: 1.5;
     -webkit-text-size-adjust: 100%;
     tab-size: 4;
-    font-family: var(--default-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");
+    font-family: var(--default-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji');
     font-feature-settings: var(--default-font-feature-settings, normal);
     font-variation-settings: var(--default-font-variation-settings, normal);
     -webkit-tap-highlight-color: transparent;
@@ -101,7 +100,7 @@
     font-weight: bolder;
   }
   code, kbd, samp, pre {
-    font-family: var(--default-mono-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+    font-family: var(--default-mono-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
     font-feature-settings: var(--default-mono-font-feature-settings, normal);
     font-variation-settings: var(--default-mono-font-variation-settings, normal);
     font-size: 1em;
@@ -201,13 +200,13 @@
   :-moz-ui-invalid {
     box-shadow: none;
   }
-  button, input:where([type="button"], [type="reset"], [type="submit"]), ::file-selector-button {
+  button, input:where([type='button'], [type='reset'], [type='submit']), ::file-selector-button {
     appearance: button;
   }
   ::-webkit-inner-spin-button, ::-webkit-outer-spin-button {
     height: auto;
   }
-  [hidden]:where(:not([hidden="until-found"])) {
+  [hidden]:where(:not([hidden='until-found'])) {
     display: none !important;
   }
 }
@@ -283,6 +282,9 @@
   .z-10 {
     z-index: 10;
   }
+  .z-20 {
+    z-index: 20;
+  }
   .m-0 {
     margin: 0px;
   }
@@ -291,6 +293,9 @@
   }
   .mx-auto {
     margin-inline: auto;
+  }
+  .my-1 {
+    margin-block: var(--spacing);
   }
   .-mt-1 {
     margin-top: calc(var(--spacing) * -1);
@@ -334,11 +339,17 @@
   .-mr-4 {
     margin-right: calc(var(--spacing) * -4);
   }
+  .mb-1\.5 {
+    margin-bottom: calc(var(--spacing) * 1.5);
+  }
   .mb-2 {
     margin-bottom: calc(var(--spacing) * 2);
   }
   .mb-3 {
     margin-bottom: calc(var(--spacing) * 3);
+  }
+  .mb-5 {
+    margin-bottom: calc(var(--spacing) * 5);
   }
   .mb-8 {
     margin-bottom: calc(var(--spacing) * 8);
@@ -413,6 +424,10 @@
   .size-12 {
     width: calc(var(--spacing) * 12);
     height: calc(var(--spacing) * 12);
+  }
+  .size-14 {
+    width: calc(var(--spacing) * 14);
+    height: calc(var(--spacing) * 14);
   }
   .size-\[14px\] {
     width: 14px;
@@ -517,9 +532,6 @@
   }
   .w-36 {
     width: calc(var(--spacing) * 36);
-  }
-  .w-44 {
-    width: calc(var(--spacing) * 44);
   }
   .w-48 {
     width: calc(var(--spacing) * 48);
@@ -630,6 +642,9 @@
   .touch-none {
     touch-action: none;
   }
+  .scroll-mt-6 {
+    scroll-margin-top: calc(var(--spacing) * 6);
+  }
   .list-none {
     list-style-type: none;
   }
@@ -681,6 +696,9 @@
   .justify-center {
     justify-content: center;
   }
+  .justify-end {
+    justify-content: flex-end;
+  }
   .gap-0\.5 {
     gap: calc(var(--spacing) * 0.5);
   }
@@ -710,9 +728,6 @@
   }
   .gap-7 {
     gap: calc(var(--spacing) * 7);
-  }
-  .gap-8 {
-    gap: calc(var(--spacing) * 8);
   }
   .gap-\[3px\] {
     gap: 3px;
@@ -1006,6 +1021,9 @@
   .px-2 {
     padding-inline: calc(var(--spacing) * 2);
   }
+  .px-2\.5 {
+    padding-inline: calc(var(--spacing) * 2.5);
+  }
   .px-3 {
     padding-inline: calc(var(--spacing) * 3);
   }
@@ -1060,8 +1078,14 @@
   .pt-1 {
     padding-top: var(--spacing);
   }
+  .pt-2 {
+    padding-top: calc(var(--spacing) * 2);
+  }
   .pt-3 {
     padding-top: calc(var(--spacing) * 3);
+  }
+  .pt-4 {
+    padding-top: calc(var(--spacing) * 4);
   }
   .pt-5 {
     padding-top: calc(var(--spacing) * 5);
@@ -1089,6 +1113,9 @@
   }
   .pb-2 {
     padding-bottom: calc(var(--spacing) * 2);
+  }
+  .pb-2\.5 {
+    padding-bottom: calc(var(--spacing) * 2.5);
   }
   .pb-5 {
     padding-bottom: calc(var(--spacing) * 5);
@@ -1175,6 +1202,12 @@
   .text-\[17px\] {
     font-size: 17px;
   }
+  .text-\[18px\] {
+    font-size: 18px;
+  }
+  .text-\[22px\] {
+    font-size: 22px;
+  }
   .text-\[24px\] {
     font-size: 24px;
   }
@@ -1201,6 +1234,10 @@
     --tw-leading: calc(var(--spacing) * 6);
     line-height: calc(var(--spacing) * 6);
   }
+  .leading-7 {
+    --tw-leading: calc(var(--spacing) * 7);
+    line-height: calc(var(--spacing) * 7);
+  }
   .leading-8 {
     --tw-leading: calc(var(--spacing) * 8);
     line-height: calc(var(--spacing) * 8);
@@ -1216,6 +1253,10 @@
   .leading-\[14px\] {
     --tw-leading: 14px;
     line-height: 14px;
+  }
+  .leading-\[18px\] {
+    --tw-leading: 18px;
+    line-height: 18px;
   }
   .leading-\[22px\] {
     --tw-leading: 22px;
@@ -1542,6 +1583,9 @@
     .hover\:bg-brand-100:hover {
       background-color: var(--color-brand-100);
     }
+    .hover\:bg-brand-600:hover {
+      background-color: var(--color-brand-600);
+    }
     .hover\:bg-gray-50:hover {
       background-color: var(--color-gray-50);
     }
@@ -1631,6 +1675,12 @@
       background-color: color-mix(in oklab, var(--color-brand) 40%, transparent);
     }
   }
+  .has-\[\:checked\]\:border-brand:has(:is(:checked)) {
+    border-color: var(--color-brand);
+  }
+  .has-\[\:checked\]\:bg-brand-50:has(:is(:checked)) {
+    background-color: var(--color-brand-50);
+  }
   .aria-invalid\:border-brand-700[aria-invalid="true"] {
     border-color: var(--color-brand-700);
   }
@@ -1657,6 +1707,13 @@
   .aria-selected\:shadow-sm[aria-selected="true"] {
     --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  .aria-\[current\=page\]\:bg-gray-100[aria-current="page"] {
+    background-color: var(--color-gray-100);
+  }
+  .aria-\[current\=page\]\:font-semibold[aria-current="page"] {
+    --tw-font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-semibold);
   }
   .aria-\[current\=true\]\:border-brand[aria-current="true"] {
     border-color: var(--color-brand);
@@ -1730,6 +1787,9 @@
     }
   }
   @media (width >= 40rem) {
+    .sm\:block {
+      display: block;
+    }
     .sm\:w-52 {
       width: calc(var(--spacing) * 52);
     }
@@ -1760,6 +1820,9 @@
     .sm\:gap-6 {
       gap: calc(var(--spacing) * 6);
     }
+    .sm\:gap-8 {
+      gap: calc(var(--spacing) * 8);
+    }
     .sm\:p-6 {
       padding: calc(var(--spacing) * 6);
     }
@@ -1785,11 +1848,19 @@
     }
   }
   @media (width >= 64rem) {
+    .lg\:grid-cols-\[300px_minmax\(0\,1fr\)\] {
+      grid-template-columns: 300px minmax(0,1fr);
+    }
     .lg\:grid-cols-\[minmax\(0\,37fr\)_minmax\(0\,63fr\)\] {
       grid-template-columns: minmax(0,37fr) minmax(0,63fr);
     }
     .lg\:gap-8 {
       gap: calc(var(--spacing) * 8);
+    }
+  }
+  @media (width >= 80rem) {
+    .xl\:px-0 {
+      padding-inline: 0px;
     }
   }
   .\[\&\:\:-webkit-details-marker\]\:hidden::-webkit-details-marker {
