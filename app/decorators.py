@@ -3,9 +3,12 @@ from functools import wraps
 from flask import abort, redirect, session, url_for
 
 from app.models import User
+from app.view_as import stop_viewing_as_user
 
 
 def role_required(role_name=None):
+    """Send logged-out users to the login page and block other roles with a 403.
+    Admin-only pages also end 'View as user', so they always get the admin navbar."""
     def decorator(view):
         @wraps(view)
         def decorated_view(*args, **kwargs):
@@ -18,6 +21,8 @@ def role_required(role_name=None):
                 user.role is None or user.role.name != role_name
             ):
                 abort(403)
+            if role_name == 'admin':
+                stop_viewing_as_user()
 
             return view(*args, **kwargs)
 

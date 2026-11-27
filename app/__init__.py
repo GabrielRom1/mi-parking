@@ -23,6 +23,9 @@ def create_app(config_class=Config):
     mail.init_app(app)
     init_db(app, bcrypt)
 
+    from app import view_as
+    view_as.init_app(app)
+
     from app.routes.auth import auth_bp
     from app.routes.public import public_bp
     from app.routes.lots import lots_bp

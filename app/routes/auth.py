@@ -6,6 +6,8 @@ from app import bcrypt
 from app.forms.login_form import LoginForm
 from app.forms.register_form import RegisterForm
 from app.models import Role, User
+from app.decorators import role_required
+from app.view_as import start_viewing_as_user
 
 auth_bp = Blueprint('auth_bp', __name__)
 
@@ -71,3 +73,17 @@ def register():
 def logout():
     session.clear()
     return redirect(url_for('auth_bp.login'))
+
+
+@auth_bp.route('/view-as/user')
+@role_required('admin')
+def view_as_user():
+    start_viewing_as_user()
+    return redirect(url_for('reservations.index'))
+
+
+@auth_bp.route('/view-as/admin')
+@role_required('admin')
+def view_as_admin():
+    # role_required('admin') already ended 'View as user'.
+    return redirect(url_for('lots.index'))
