@@ -1,11 +1,90 @@
 {% extends "base.html" %}
 
-{% block title %} Mi-Parking{% endblock %}
-{% block head %}
+{% set focus_ring = "focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-brand/40" %}
+{% set display = "font-['Barlow_Semi_Condensed',sans-serif]" %}
 
+{% macro photo(name, width, height, alt, class='', eager=false, shot=false, fill=false) -%}
+	<div class="relative overflow-hidden bg-gray-100 {{ 'border border-cool-gray bg-white' if shot else '' }} {{ class }}"{% if not fill %} style="aspect-ratio: {{ width }} / {{ height }}"{% endif %}>
+		{% if name in landing_images %}
+			<img src="{{ url_for('static', filename='img/landing/' ~ name ~ '.webp') }}" width="{{ width }}" height="{{ height }}" alt="{{ alt }}"
+				{% if not eager %}loading="lazy"{% endif %} decoding="async" class="absolute inset-0 size-full {{ 'object-cover object-top' if shot else 'object-cover' }}">
+		{% else %}
+			<span role="img" aria-label="{{ alt }}" class="absolute inset-0 grid place-items-center p-3 text-center font-mono text-[12px] text-ink/50">{{ name }}.webp</span>
+		{% endif %}
+	</div>
+{%- endmacro %}
+
+{% block head %}
+	<title>MiParking · Estacionamiento en la IUPI</title>
+	<meta name="description" content="Reserva tu espacio de estacionamiento en el Recinto de Río Piedras antes de llegar.">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
 {% endblock %}
 
 {% block body %}
-	<h1 class="">Hello World</h1>
-	<a href="{{ url_for('reservations.index') }}">Reservar estacionamiento</a>
+<div class="min-h-screen bg-paper font-['Source_Sans_3',system-ui,sans-serif] text-[16px] leading-[24px] text-ink">
+	<header class="border-t-4 border-b border-t-brand border-b-ink/10 bg-paper">
+		<div class="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-3 px-4 sm:h-[68px] sm:px-6">
+			<a href="{{ url_for('public.index') }}" class="{{ display }} text-[26px] leading-8 font-bold sm:text-[28px] {{ focus_ring }}"><span class="text-brand">Mi</span>Parking</a>
+			<nav aria-label="Cuenta" class="flex items-center gap-1 sm:gap-4">
+				<a href="{{ url_for('auth_bp.login') }}" class="rounded px-2 py-2 font-semibold text-ink/70 transition-colors hover:text-ink {{ focus_ring }}">Iniciar sesión</a>
+				<a href="{{ url_for('auth_bp.register') }}" class="rounded-lg bg-brand px-3 py-2 font-semibold text-white transition-colors hover:bg-brand-600 sm:px-4 {{ focus_ring }}">Crear cuenta</a>
+			</nav>
+		</div>
+	</header>
+
+	<main id="contenido">
+		{# hero #}
+		<section aria-labelledby="titulo" class="mx-auto grid max-w-[1200px] gap-12 px-4 pt-10 pb-16 sm:px-6 md:pt-14 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-center lg:gap-16 lg:pb-24">
+			<div>
+				<p class="mb-5 border-b border-ink/15 pb-3 text-[13px] font-semibold tracking-[0.14em] text-ink/60 uppercase">Recinto de Río Piedras · Estacionamiento</p>
+				<h1 id="titulo" class="{{ display }} text-[48px] leading-[0.95] font-bold sm:text-[68px] lg:text-[80px]">Reserva tu espacio <span class="text-brand">antes</span> de salir pa’l recinto.</h1>
+				<p class="mt-6 max-w-[46ch] text-[18px] leading-[27px] text-ink/75">Ves qué lotes tienen espacio, escoges uno y llegas sabiendo dónde vas a estacionarte.</p>
+				<div class="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+					<a href="{{ url_for('auth_bp.register') }}" class="inline-flex h-12 items-center rounded-lg bg-brand px-7 text-[17px] font-semibold text-white transition-colors hover:bg-brand-600 {{ focus_ring }}">Crear cuenta</a>
+					<p class="text-ink/70">¿Ya tienes cuenta? <a href="{{ url_for('auth_bp.login') }}" class="font-semibold text-brand underline underline-offset-2 hover:no-underline {{ focus_ring }}">Inicia sesión</a></p>
+				</div>
+			</div>
+
+			{{ photo('hero-torre', 500, 452, 'La Torre de la Universidad de Puerto Rico en Río Piedras, con el letrero Yo amo IUPI al frente', eager=true) }}
+		</section>
+
+		<section aria-labelledby="problema" class="border-t border-ink/15">
+			<div class="mx-auto grid max-w-[1200px] gap-10 px-4 py-16 sm:px-6 lg:grid-cols-12 lg:items-center lg:gap-12 lg:py-24">
+				<div class="lg:col-span-5">
+					<p class="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">Por qué hicimos esto</p>
+					<h2 id="problema" class="{{ display }} mt-3 text-[38px] leading-[1] font-bold sm:text-[48px]">A las 8:15 no hay dónde meterse.</h2>
+					<div class="mt-6 flex max-w-[48ch] flex-col gap-4 text-[17px] leading-[26px] text-ink/80">
+						<p>Si tienes clase temprano, ya sabes cómo es. Das vueltas por los lotes, sales, vuelves a entrar, y llegas tarde igual.</p>
+						<p>MiParking te deja ver los espacios libres y reservar uno antes de salir. Cuando llegas, el espacio es tuyo.</p>
+					</div>
+				</div>
+				<div class="grid grid-cols-[3fr_2fr] gap-3 sm:gap-4 lg:col-span-7">
+					{{ photo('parking-lleno-manana', 640, 360, 'Vista aérea de un estacionamiento lleno con un carro buscando espacio') }}
+					{{ photo('ponce-de-leon-trafico', 500, 500, 'Tránsito lento en una avenida llena de carros', fill=true) }}
+				</div>
+			</div>
+		</section>
+	</main>
+
+	{# footer #}
+	<footer class="border-t-4 border-ink bg-paper">
+		<div class="mx-auto grid max-w-[1200px] gap-6 px-4 py-10 text-[15px] sm:px-6 md:grid-cols-2">
+			<div>
+				<p class="{{ display }} text-[24px] font-bold"><span class="text-brand">Mi</span>Parking</p>
+				<p class="mt-1 text-ink/70">Proyecto de CCOM 4030, UPR Río Piedras</p>
+			</div>
+			<div>
+				<p class="text-[13px] font-semibold tracking-[0.14em] text-ink/60 uppercase">Equipo</p>
+				<ul class="mt-2 grid gap-1 text-ink/80 sm:grid-cols-2">
+					<li>Uriel Fuentes Figueroa</li>
+					<li>Nestor Martínez Rivera</li>
+					<li>Gabriel Romero Torres</li>
+					<li>Pablo Torres Arroyo</li>
+				</ul>
+			</div>
+		</div>
+	</footer>
+</div>
 {% endblock %}
