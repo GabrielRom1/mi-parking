@@ -554,7 +554,26 @@ class Lots(db.Model):
 			if last_reservation_end < last_reservation_end_exact:
 				last_reservation_end += timedelta(minutes=1)
 			minimum = max(minimum, last_reservation_end)
-		return minimum
+		return cls._ceil_to_slot(minimum)
+
+	@classmethod
+	def _ceil_to_slot(cls, value):
+		"""Round a datetime up to the next RESERVATION_SLOT_MINUTES boundary."""
+		slot = current_app.config['RESERVATION_SLOT_MINUTES']
+		value = value.replace(second=0, microsecond=0) + (
+			timedelta(minutes=1) if value.second or value.microsecond else timedelta()
+		)
+		remainder = (value.hour * 60 + value.minute) % slot
+		return value + timedelta(minutes=(slot - remainder) % slot)
+
+	@classmethod
+	def _is_slot_aligned(cls, value):
+		slot = current_app.config['RESERVATION_SLOT_MINUTES']
+		return (
+			value.second == 0
+			and value.microsecond == 0
+			and (value.hour * 60 + value.minute) % slot == 0
+		)
 
 	@classmethod
 	def _scope(cls, lot):
@@ -615,6 +634,7 @@ class Lots(db.Model):
 			'window_end': window_end.isoformat(timespec='microseconds'),
 			'window_hours': current_app.config['RESERVATION_WINDOW_HOURS'],
 			'slot_minutes': current_app.config['RESERVATION_SLOT_MINUTES'],
+			'pending_reservations_count': len(blockers),
 			'minimum_token': cls._make_deletion_minimum_token(
 				lot_id, scheduled_at, clicked_at=clicked_at
 			),
@@ -902,6 +922,12 @@ class Lots(db.Model):
 			return cls._apply_lot_transaction(lot, 'deactivate')
 
 		if scheduled_date is not None:
+			if not cls._is_slot_aligned(scheduled_date):
+				raise ValueError(
+					'La hora programada debe caer en un bloque de '
+					f"{current_app.config['RESERVATION_SLOT_MINUTES']} minutos "
+					'(por ejemplo, 10:00 o 10:30).'
+				)
 			if scheduled_date < minimum_datetime:
 				raise SchedulingRequired(
 					minimum_datetime, lot_id, 'desactivar el lote',
