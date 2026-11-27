@@ -42,7 +42,7 @@ DURATION_CHOICES = [
     (180, '3 horas'),
     (240, '4 horas'),
 ]
-DEFAULT_DURATION = 60
+DEFAULT_DURATION = 120  # Figma "4 · Quick Find" opens with 2 hours
 
 
 # ========== Search and sort (REQ.5.2) ==========
@@ -98,6 +98,12 @@ def quick_find_range(minutes, current=None):
     if start is None:
         return None, None
     return start, min(start + timedelta(minutes=minutes), _closing(start.date()))
+
+
+def starts_now(start, current=None):
+    """True when `start` is the very next slot, which the dialog shows as "Ahora"."""
+    current = current or now()
+    return start - current <= timedelta(minutes=current_app.config['RESERVATION_SLOT_MINUTES'])
 
 
 def quick_find_candidates(user, start, end, preferred_lot=None, skip=(), current=None):

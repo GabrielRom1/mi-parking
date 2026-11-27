@@ -34,6 +34,7 @@ from app.services.search import (
     quick_find_range,
     release_holds,
     search_lots,
+    starts_now,
 )
 
 reservations_bp = Blueprint('reservations', __name__)
@@ -254,17 +255,14 @@ def calendar(reservation_id):
     )
 
 
-@reservations_bp.route('/quick-find', methods=['GET'])
-@role_required()
-def quick_find_form():
-    user = _current_user()
-    return render_template('reservations/include/quick_find.html', form=_quick_find_form(user))
-
-
 @reservations_bp.route('/quick-find', methods=['POST'])
 @role_required()
 def quick_find_result():
-    """Hold and show the best spot for the user (SRS REQ.5.1). "Buscar otro" posts again with `skip`."""
+    """The Quick Find dialog with the best spot for the user, held for them (SRS REQ.5.1, Figma "4 · Quick Find").
+
+    The page posts here when the dialog opens and whenever its fields change;
+    "Buscar otro" posts again with the spots already shown in `skip`.
+    """
     user = _current_user()
     form = _quick_find_form(user)
     if not form.validate_on_submit():
@@ -291,8 +289,10 @@ def quick_find_result():
 
     lot, spot = suggestion or (None, None)
     return render_template(
-        'reservations/include/quick_find_result.html',
+        'reservations/include/quick_find.html',
         form=form,
+        chart_range=bool(form.start_time.data and form.end_time.data),
+        starts_now=starts_now(start) if start else False,
         lot=lot,
         spot=spot,
         label=spot_label(spot) if spot else None,

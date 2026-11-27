@@ -10,7 +10,7 @@
 <div data-reserve-page
 	data-start="{{ start.isoformat(timespec='minutes') if start else '' }}" data-end="{{ end.isoformat(timespec='minutes') if end else '' }}"
 	data-base-url="{{ url_for('reservations.index') }}" data-chart-url="{{ url_for('reservations.chart') }}" data-lots-url="{{ url_for('reservations.lots') }}"
-	data-quick-find-url="{{ url_for('reservations.quick_find_form') }}" data-release-url="{{ url_for('reservations.quick_find_release') }}" data-csrf="{{ csrf }}"
+	data-quick-find-url="{{ url_for('reservations.quick_find_result') }}" data-release-url="{{ url_for('reservations.quick_find_release') }}" data-csrf="{{ csrf }}"
 	class="flex flex-col gap-6">
 
 	<div class="flex flex-col gap-1.5">

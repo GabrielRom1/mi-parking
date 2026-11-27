@@ -271,13 +271,18 @@
 	}
 
 	// ------------------------------------------------------------------ Quick Find (REQ.5.1)
-	$('[data-quick-find]', page).addEventListener('click', () => showStep(page.dataset.quickFindUrl));
-
-	// "Búsqueda rápida en este horario": skip the form and use the chart's time and lot.
-	$('[data-quick-find-range]', page).addEventListener('click', () => {
+	// The dialog (Figma "4 · Quick Find") shows its best match right away, so opening it is a search.
+	function csrfBody() {
 		const body = new FormData();
 		body.set('csrf_token', page.dataset.csrf);
-		body.set('duration', '60');
+		return body;
+	}
+
+	$('[data-quick-find]', page).addEventListener('click', () => postQuickFind(page.dataset.quickFindUrl, csrfBody()));
+
+	// "Búsqueda rápida en este horario": the same dialog, with the chart's time and lot.
+	$('[data-quick-find-range]', page).addEventListener('click', () => {
+		const body = csrfBody();
 		body.set('start_time', state.start);
 		body.set('end_time', state.end);
 		// Quick Find only offers active lots, so an inactive one picked on the chart is left out.
@@ -293,26 +298,55 @@
 			dialogBody.innerHTML = await response.text(); // the result, or the form with its error (422)
 			state.holding = Boolean($('[data-quick-find-form][data-spot-id]', dialogBody));
 			if (!dialog.open) dialog.showModal();
-			$('button[type=submit], [data-quick-find-reserve], button', dialogBody)?.focus();
+			($('[data-quick-find-reserve]', dialogBody) || $('[data-close-dialog]:not([aria-label])', dialogBody))?.focus();
 		} catch (error) {
 			showDialogError('No se pudo hacer la búsqueda rápida. Inténtalo de nuevo en un momento.');
 			if (!dialog.open) dialog.showModal();
 		}
 	}
 
-	// Reservar on the suggestion: continue to the usual confirm step for that spot and time.
-	function reserveSuggestion(form) {
-		state.lotId = form.dataset.lotId;
-		state.spotId = form.dataset.spotId;
-		state.dialogStart = form.dataset.start;
-		state.dialogEnd = form.dataset.end;
-		showConfirm();
+	// Reservar on the suggestion goes straight to "¡Reservación confirmada!" (Figma), through the usual create route.
+	async function reserveSuggestion(form) {
+		const button = $('[data-quick-find-reserve]', form);
+		const errorBox = $('[data-quick-find-error]', form);
+		const body = csrfBody();
+		body.set('spot_id', form.dataset.spotId);
+		body.set('start_time', form.dataset.start);
+		body.set('end_time', form.dataset.end);
+		button.disabled = true;
+		errorBox.hidden = true;
+		try {
+			const response = await fetch(`${baseUrl}`, { method: 'POST', body, headers: { Accept: 'application/json' } });
+			if (followLoginRedirect(response)) return;
+			const data = await response.json().catch(() => ({}));
+			if (response.status === 201) {
+				state.reserved = true;
+				state.holding = false; // reserving ends the user's Quick Find hold
+				dialogBody.innerHTML = data.html;
+				$('button', dialogBody)?.focus();
+				return;
+			}
+			$('[data-quick-find-error-text]', errorBox).textContent =
+				data.message || 'No se pudo guardar la reservación. Inténtalo de nuevo en un momento.';
+		} catch (error) {
+			$('[data-quick-find-error-text]', errorBox).textContent = 'No se pudo conectar con el servidor. Inténtalo de nuevo.';
+		}
+		errorBox.hidden = false;
+		button.disabled = false;
 	}
 
 	dialogBody.addEventListener('submit', (event) => {
 		const form = event.target.closest('[data-quick-find-form]');
 		if (!form) return;
 		event.preventDefault();
+		postQuickFind(form.action, new FormData(form));
+	});
+
+	// Changing the duration or lot is a new search, so the spots shown so far no longer count.
+	dialogBody.addEventListener('change', (event) => {
+		if (!event.target.matches('[data-quick-find-field]')) return;
+		const form = event.target.closest('[data-quick-find-form]');
+		form.elements.skip.value = '';
 		postQuickFind(form.action, new FormData(form));
 	});
 
