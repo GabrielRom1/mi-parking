@@ -40,13 +40,14 @@
 
 	// ------------------------------------------------------------------ Formatting
 	const integer = new Intl.NumberFormat('es-PR');
+	const decimal = new Intl.NumberFormat('es-PR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 	const longDate = new Intl.DateTimeFormat('es-PR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 	const shortDate = new Intl.DateTimeFormat('es-PR', { weekday: 'short', day: 'numeric', month: 'short' });
 	const dateRange = new Intl.DateTimeFormat('es-PR', { day: 'numeric', month: 'long', year: 'numeric' });
 
 	const isNumber = (value) => typeof value === 'number' && Number.isFinite(value);
 	const clamp = (value) => (isNumber(value) ? Math.min(Math.max(value, 0), 1) : 0);
-	const percent = (value) => (isNumber(value) ? `${Math.round(value * 100)}%` : null);
+	const percent = (value) => (isNumber(value) ? `${decimal.format(value * 100)}%` : null);
 	const plural = (count, one, many) => `${integer.format(count)} ${count === 1 ? one : many}`;
 
 	// Times come as 'HH:MM' or 'YYYY-MM-DDTHH:MM', in Puerto Rico time.
@@ -350,7 +351,7 @@
 			$('[data-rank-location]', row).textContent = lot.location ?? '';
 			$('[data-rank-inactive]', row).hidden = active;
 			$('[data-rank-bar]', row).style.width = `${occupancy * 100}%`;
-			$('[data-rank-meter]', row).setAttribute('aria-valuenow', String(Math.round(occupancy * 100)));
+			$('[data-rank-meter]', row).setAttribute('aria-valuenow', (occupancy * 100).toFixed(2));
 			$('[data-rank-count]', row).textContent = `${integer.format(lot.reserved ?? 0)}/${integer.format(lot.capacity ?? 0)}`;
 
 			const lotId = lot.id == null ? '' : String(lot.id);
