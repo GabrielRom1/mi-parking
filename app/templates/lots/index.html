@@ -9,6 +9,8 @@
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
 {% endblock %}
 
+{% set active_nav = 'lots' %}
+
 {% block title %}Gestión de lotes - MiParking{% endblock %}
 
 {% set label_class = "text-small font-semibold text-black-700" %}
@@ -38,28 +40,7 @@
 
 {% block body %}
 <div class="min-h-screen bg-gray-50 font-body text-body text-ink">
-	<div class="h-1 bg-brand"></div>
-	<header class="border-b border-gray-200 bg-white">
-		<div class="mx-auto flex h-[68px] max-w-[1200px] items-center justify-between">
-			<div class="flex items-center gap-2.5">
-				<p class="font-display text-[28px] leading-8 font-bold"><span class="text-brand">Mi</span>Parking</p>
-				<span class="rounded-full bg-gray-100 px-2 py-0.5 text-small font-semibold text-black-700">Admin</span>
-			</div>
-			<div class="flex h-full items-center gap-8">
-				<nav class="flex h-full items-stretch" aria-label="Administración">
-					<a href="{{ url_for('lots.index') }}" aria-current="page" class="flex items-center border-b-3 border-brand pt-[3px] font-semibold">Gestión</a>
-				</nav>
-				<div class="h-7 w-px bg-gray-200"></div>
-				<div class="flex items-center gap-2">
-					<span class="grid size-9 place-items-center rounded-full bg-brand-50 text-small font-semibold text-brand" aria-hidden="true">{{ (user.first_name[:1] ~ user.last_name[:1]) | upper }}</span>
-					<div>
-						<p class="font-semibold">{{ user.first_name }} {{ user.last_name }}</p>
-						<p class="text-small text-black-500">Administrador</p>
-					</div>
-				</div>
-			</div>
-		</div>
-	</header>
+	{% include 'include/admin_header.html' %}
 
 	<main class="mx-auto flex max-w-[1200px] flex-col gap-5 py-10">
 		<div class="flex flex-col gap-1">

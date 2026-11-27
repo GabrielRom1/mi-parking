@@ -39,6 +39,23 @@ class User(db.Model):
 			db.func.lower(cls.email) == normalized_email
 		).first()
 
+	@property
+	def is_admin(self):
+		return self.role is not None and self.role.name == 'admin'
+
+	def update_profile(self, email, first_name, last_name, requires_accessible_spot):
+		"""Save the fields the user can edit on /profile. Every page reads the user
+		from the DB on each request, so the change shows up everywhere right away."""
+		self.email = email.strip().lower()
+		self.first_name = first_name.strip()
+		self.last_name = last_name.strip()
+		self.requires_accessible_spot = requires_accessible_spot
+		db.session.commit()
+
+	def update_password(self, password_hash):
+		self.password_hash = password_hash
+		db.session.commit()
+
 	@classmethod
 	def create_user(
 		cls,
