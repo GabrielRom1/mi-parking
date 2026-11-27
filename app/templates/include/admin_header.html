@@ -8,8 +8,9 @@
 			<span class="rounded-full bg-gray-100 px-2 py-0.5 text-small font-semibold text-black-700">Admin</span>
 		</div>
 		<div class="flex h-full items-center gap-4 sm:gap-8">
-			<nav class="flex h-full items-stretch" aria-label="Administración">
+			<nav class="flex h-full items-stretch gap-7" aria-label="Administración">
 				<a href="{{ url_for('lots.index') }}" {% if active_nav == 'lots' %}aria-current="page"{% endif %} class="flex items-center border-b-3 pt-[3px] {{ 'border-brand font-semibold' if active_nav == 'lots' else 'border-transparent text-black-700 hover:text-ink' }}">Gestión</a>
+				<a href="{{ url_for('reports.index') }}" {% if active_nav == 'reports' %}aria-current="page"{% endif %} class="flex items-center border-b-3 pt-[3px] {{ 'border-brand font-semibold' if active_nav == 'reports' else 'border-transparent text-black-700 hover:text-ink' }}">Reportes</a>
 			</nav>
 			<div class="h-7 w-px bg-gray-200"></div>
 			<details class="group relative">

@@ -1,5 +1,7 @@
 # CREATE TABLE reservations(
 from app.database import db
+from app.models.Roles import Role
+from app.models.User import User
 
 from .Spots import Spots
 
@@ -47,6 +49,22 @@ class Reservation(db.Model):
 			cls.start_time < end,
 			cls.end_time > start,
 		)
+
+	@classmethod
+	def for_usage_report(cls, spot_ids, start, end, role_name=None):
+		"""Reservations on the given spots that share time with [start, end) and weren't cancelled.
+		With `role_name`, only those made by users with that role."""
+		if not spot_ids:
+			return []
+		query = cls.query.filter(
+			cls.spot_id.in_(spot_ids),
+			cls.status != 'Cancelled',
+			cls.start_time < end,
+			cls.end_time > start,
+		)
+		if role_name:
+			query = query.join(cls.user).join(User.role).filter(Role.name == role_name)
+		return query.all()
 
 	@classmethod
 	def create(cls, user, spot, start, end):
