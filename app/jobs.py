@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from app.database import db
 from app.models.Reservations import Reservation
@@ -18,7 +18,7 @@ from app.services.reservations import extension_available, now
 def cancel_reservations_without_check_in(app):
     with app.app_context():
         grace_minutes = app.config['RESERVATION_CHECK_IN_GRACE_MINUTES']
-        deadline = datetime.now() - timedelta(minutes=grace_minutes)
+        deadline = now() - timedelta(minutes=grace_minutes)
 
         reservations = Reservation.active_without_check_in_before(deadline).all()
 
