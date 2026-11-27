@@ -227,7 +227,7 @@
 	</form>
 </dialog>
 
-<dialog data-action-dialog aria-labelledby="action-dialog-title" aria-describedby="action-dialog-desc" class="m-auto w-[min(520px,calc(100vw-32px))] overflow-hidden rounded-2xl bg-white p-0 font-body text-body text-ink shadow-modal backdrop:bg-ink/45">
+<dialog data-action-dialog aria-labelledby="action-dialog-title" aria-describedby="action-dialog-desc" class="m-auto w-[min(600px,calc(100vw-32px))] overflow-hidden rounded-2xl bg-white p-0 font-body text-body text-ink shadow-modal backdrop:bg-ink/45">
 	<div class="flex flex-col gap-5 p-6">
 		<div>
 			<h2 id="action-dialog-title" class="font-display text-[24px] leading-7 font-semibold"></h2>
@@ -243,12 +243,77 @@
 			<input data-action-date type="datetime-local" step="60" required class="h-10 w-full rounded-lg border border-cool-gray bg-white px-3 text-body text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-100">
 			<span data-action-date-hint class="font-normal text-black-500"></span>
 		</label>
+		<div data-override-warning role="alert" class="flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-small text-amber-900" hidden>
+			<span class="shrink-0 text-amber-700">{{ icon('alert-circle') }}</span>
+			<p data-override-warning-text></p>
+		</div>
+
+		{# Modo con reservaciones pendientes: tarjetas de opción (programar recomendado vs. override de emergencia). #}
+		<fieldset data-choice-mode class="flex flex-col gap-3" hidden>
+			<legend class="sr-only">Escoge cómo continuar</legend>
+			<label data-choice-card="schedule-delete" class="flex cursor-pointer gap-3 rounded-xl border-2 border-gray-200 bg-white p-4 has-[>input:checked]:border-brand has-[>input:checked]:bg-brand-50 has-disabled:cursor-not-allowed has-disabled:opacity-60">
+				<input type="radio" name="action-choice" value="schedule-delete" class="mt-0.5 size-5 shrink-0 accent-brand">
+				<span class="flex min-w-0 flex-1 flex-col gap-1">
+					<span class="flex items-start justify-between gap-3">
+						<span data-choice-title class="font-semibold text-ink"></span>
+						<span class="shrink-0 text-brand">{{ icon('clock') }}</span>
+					</span>
+					<span data-choice-desc class="text-small text-black-700"></span>
+					<span data-choice-fixed class="mt-2 font-semibold tabular-nums text-ink"></span>
+					<span data-choice-hint class="mt-1 text-small text-black-500"></span>
+				</span>
+			</label>
+			<label data-choice-card="schedule-deactivate" class="flex cursor-pointer gap-3 rounded-xl border-2 border-gray-200 bg-white p-4 has-[>input:checked]:border-brand has-[>input:checked]:bg-brand-50 has-disabled:cursor-not-allowed has-disabled:opacity-60">
+				<input type="radio" name="action-choice" value="schedule-deactivate" class="mt-0.5 size-5 shrink-0 accent-brand">
+				<span class="flex min-w-0 flex-1 flex-col gap-1">
+					<span class="flex items-start justify-between gap-3">
+						<span data-choice-title class="font-semibold text-ink"></span>
+						<span class="shrink-0 text-brand">{{ icon('clock') }}</span>
+					</span>
+					<span data-choice-desc class="text-small text-black-700"></span>
+					<span class="mt-3 grid grid-cols-2 gap-3">
+						<span class="flex flex-col gap-1.5 text-small font-semibold text-black-700">
+							Fecha *
+							<input data-choice-date type="date" class="h-10 w-full rounded-lg border border-cool-gray bg-white px-3 text-body font-normal text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-100">
+						</span>
+						<span class="flex flex-col gap-1.5 text-small font-semibold text-black-700">
+							Hora *
+							<select data-choice-time class="h-10 w-full rounded-lg border border-cool-gray bg-white px-3 text-body font-normal text-ink outline-none focus:border-brand focus:ring-4 focus:ring-brand-100"></select>
+						</span>
+					</span>
+					<span data-choice-hint class="mt-1 text-small text-black-500"></span>
+				</span>
+			</label>
+			<label data-choice-card="override" class="flex cursor-pointer gap-3 rounded-xl border-2 border-gray-200 bg-white p-4 has-[>input:checked]:border-brand has-[>input:checked]:bg-brand-50">
+				<input type="radio" name="action-choice" value="override" class="mt-0.5 size-5 shrink-0 accent-brand">
+				<span class="flex min-w-0 flex-1 flex-col gap-1">
+					<span class="flex items-start justify-between gap-3">
+						<span data-choice-title class="font-semibold text-ink">Override de emergencia</span>
+						<span class="shrink-0 text-black-500">{{ icon('zap') }}</span>
+					</span>
+					<span data-choice-desc class="text-small text-black-700"></span>
+				</span>
+			</label>
+			<label data-choice-card="override-deactivate" class="flex cursor-pointer gap-3 rounded-xl border-2 border-gray-200 bg-white p-4 has-[>input:checked]:border-brand has-[>input:checked]:bg-brand-50" hidden>
+				<input type="radio" name="action-choice" value="override-deactivate" class="mt-0.5 size-5 shrink-0 accent-brand">
+				<span class="flex min-w-0 flex-1 flex-col gap-1">
+					<span class="flex items-start justify-between gap-3">
+						<span data-choice-title class="font-semibold text-ink">Override: desactivar ahora</span>
+						<span class="shrink-0 text-black-500">{{ icon('zap') }}</span>
+					</span>
+					<span data-choice-desc class="text-small text-black-700"></span>
+				</span>
+			</label>
+		</fieldset>
+
 		<div class="flex flex-wrap justify-end gap-2">
 			<button type="button" data-cancel-action class="btn btn-ghoss">Cancelar</button>
 			<button type="button" data-cancel-schedule-action class="btn btn-secondary" hidden>Cancelar programación</button>
 			<button type="button" data-schedule-action class="btn btn-secondary">Programar</button>
 			<button type="button" data-schedule-deactivation-action class="btn btn-secondary" hidden>Programar desactivación</button>
+			<button type="button" data-deactivate-now-action class="btn btn-secondary" hidden>Desactivar ahora</button>
 			<button type="button" data-override-action class="btn btn-primary">Continuar con override</button>
+			<button type="button" data-choice-confirm class="btn btn-primary" hidden>Confirmar</button>
 		</div>
 	</div>
 </dialog>

@@ -598,6 +598,202 @@
 		if (button) openEditor(button.dataset.editUrl);
 	});
 
+	const DEFAULT_SLOT_MINUTES = 30;
+
+	function ceilToSlot(isoValue, slotMinutes) {
+		// isoValue: 'YYYY-MM-DDTHH:MM' (hora local de PR). Redondea hacia arriba al bloque.
+		if (!isoValue) return isoValue;
+		const [datePart, timePart = '00:00'] = isoValue.split('T');
+		const [y, mo, d] = datePart.split('-').map(Number);
+		const [h, mi] = timePart.split(':').map(Number);
+		const date = new Date(y, mo - 1, d, h, mi);
+		const remainder = (h * 60 + mi) % slotMinutes;
+		if (remainder) date.setMinutes(date.getMinutes() + slotMinutes - remainder);
+		const pad = (n) => String(n).padStart(2, '0');
+		return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+	}
+
+	function setSlotDateInput(dateInput, minimum, slotMinutes = DEFAULT_SLOT_MINUTES) {
+		const value = ceilToSlot(minimum, slotMinutes);
+		dateInput.type = 'datetime-local';
+		dateInput.step = String(slotMinutes * 60);
+		dateInput.min = value;
+		dateInput.value = value;
+		return value;
+	}
+
+	function setOverrideWarning({ kind, hasPending, count = null, visible = true }) {
+		const warning = $('[data-override-warning]', actionDialog);
+		warning.hidden = !visible || !hasPending;
+		if (warning.hidden) return;
+		const amount = Number.isInteger(count) && count > 0
+			? (count === 1 ? '1 reservación activa' : `${count} reservaciones activas`)
+			: 'todas las reservaciones activas';
+		const verb = kind === 'delete' ? 'Eliminar' : 'Desactivar';
+		$('[data-override-warning-text]', actionDialog).textContent =
+			`${verb} ahora con override cancelará de inmediato ${amount} y se notificará por correo a los usuarios afectados. Se recomienda programar la acción en su lugar.`;
+	}
+
+	const pad2 = (n) => String(n).padStart(2, '0');
+
+	function formatSlotTime(hours, minutes) {
+		return new Date(2000, 0, 1, hours, minutes)
+			.toLocaleTimeString('es-PR', { hour: 'numeric', minute: '2-digit' });
+	}
+
+	function formatDateTimeLabel(isoValue) {
+		const [datePart, timePart] = isoValue.split('T');
+		const [y, mo, d] = datePart.split('-').map(Number);
+		const [h, mi] = timePart.split(':').map(Number);
+		const dateLabel = new Date(y, mo - 1, d)
+			.toLocaleDateString('es-PR', { day: 'numeric', month: 'short', year: 'numeric' });
+		return `${dateLabel} · ${formatSlotTime(h, mi)}`;
+	}
+
+	function fillChoiceTimeOptions(minimum, slotMinutes) {
+		const dateInput = $('[data-choice-date]', actionDialog);
+		const timeSelect = $('[data-choice-time]', actionDialog);
+		const [minDate, minTime] = minimum.split('T');
+		const [minH, minM] = minTime.split(':').map(Number);
+		const minMinutes = dateInput.value === minDate ? minH * 60 + minM : 0;
+		const previous = timeSelect.value;
+		timeSelect.replaceChildren();
+		for (let total = 0; total < 24 * 60; total += slotMinutes) {
+			if (total < minMinutes) continue;
+			const h = Math.floor(total / 60);
+			const m = total % 60;
+			const option = document.createElement('option');
+			option.value = `${pad2(h)}:${pad2(m)}`;
+			option.textContent = formatSlotTime(h, m);
+			timeSelect.append(option);
+		}
+		if ([...timeSelect.options].some((option) => option.value === previous)) {
+			timeSelect.value = previous;
+		}
+	}
+
+	// Actualiza la tarjeta "Programar desactivación" cuando el servidor devuelve un mínimo nuevo (409).
+	function updateChoiceMinimum(minimumDatetime) {
+		const card = $('[data-choice-card="schedule-deactivate"]', actionDialog);
+		if (!minimumDatetime || $('[data-choice-mode]', actionDialog).hidden || card.hidden) return;
+		const choiceDate = $('[data-choice-date]', actionDialog);
+		const slot = Number(choiceDate.dataset.slot) || DEFAULT_SLOT_MINUTES;
+		const minimum = ceilToSlot(minimumDatetime.slice(0, 16), slot);
+		choiceDate.min = minimum.slice(0, 10);
+		choiceDate.value = minimum.slice(0, 10);
+		choiceDate.dataset.minimum = minimum;
+		fillChoiceTimeOptions(minimum, slot);
+		$('[data-choice-time]', actionDialog).value = minimum.slice(11, 16);
+		$('[data-choice-hint]', card).textContent =
+			`Las reservaciones cambiaron; la hora más temprana ahora es ${formatDateTimeLabel(minimum)}`;
+		$('input[type="radio"]', card).checked = true;
+		refreshChoiceConfirm();
+	}
+
+	function selectedChoice() {
+		return $('[name="action-choice"]:checked', actionDialog)?.value ?? null;
+	}
+
+	function refreshChoiceConfirm() {
+		if (!pendingAction) return;
+		const choice = selectedChoice();
+		$('[data-choice-confirm]', actionDialog).textContent =
+			choice === 'schedule-delete'
+				? 'Programar eliminación'
+				: choice === 'schedule-deactivate'
+					? 'Programar desactivación'
+					: choice === 'override-deactivate' || pendingAction.kind === 'deactivate'
+						? 'Desactivar ahora'
+						: 'Eliminar ahora';
+	}
+
+	function hideChoiceMode() {
+		$('[data-choice-mode]', actionDialog).hidden = true;
+		$('[data-choice-confirm]', actionDialog).hidden = true;
+	}
+
+	/**
+	 * Muestra el diálogo con tarjetas de opción (hay reservaciones pendientes).
+	 * Cada tarjeta recibe null para ocultarla.
+	 */
+	function showChoiceMode({
+		deleteCard = null,
+		deactivateCard = null,
+		overrideCard = { title: 'Override de emergencia', note: '' },
+		overrideDeactivateCard = null,
+		overrideCount = null,
+	}) {
+		['[data-action-date-field]', '[data-action-date-picker-field]',
+			'[data-schedule-action]', '[data-schedule-deactivation-action]',
+			'[data-override-action]', '[data-deactivate-now-action]',
+			'[data-override-warning]']
+			.forEach((selector) => { $(selector, actionDialog).hidden = true; });
+		$('[data-choice-mode]', actionDialog).hidden = false;
+		$('[data-choice-confirm]', actionDialog).hidden = false;
+
+		const deleteEl = $('[data-choice-card="schedule-delete"]', actionDialog);
+		const deactivateEl = $('[data-choice-card="schedule-deactivate"]', actionDialog);
+		const overrideEl = $('[data-choice-card="override"]', actionDialog);
+		const overrideDeactivateEl = $('[data-choice-card="override-deactivate"]', actionDialog);
+
+		deleteEl.hidden = !deleteCard;
+		if (deleteCard) {
+			$('[data-choice-title]', deleteEl).textContent = deleteCard.title;
+			$('[data-choice-desc]', deleteEl).textContent = deleteCard.description;
+			$('[data-choice-fixed]', deleteEl).textContent = deleteCard.fixed;
+			$('[data-choice-hint]', deleteEl).textContent = deleteCard.hint;
+			$('input', deleteEl).disabled = !deleteCard.enabled;
+		}
+
+		deactivateEl.hidden = !deactivateCard;
+		if (deactivateCard) {
+			const slot = deactivateCard.slotMinutes || DEFAULT_SLOT_MINUTES;
+			const minimum = ceilToSlot(deactivateCard.minimum, slot);
+			$('[data-choice-title]', deactivateEl).textContent = deactivateCard.title;
+			$('[data-choice-desc]', deactivateEl).textContent = deactivateCard.description;
+			const choiceDate = $('[data-choice-date]', actionDialog);
+			choiceDate.min = minimum.slice(0, 10);
+			choiceDate.value = minimum.slice(0, 10);
+			choiceDate.dataset.minimum = minimum;
+			choiceDate.dataset.slot = String(slot);
+			fillChoiceTimeOptions(minimum, slot);
+			$('[data-choice-time]', actionDialog).value = minimum.slice(11, 16);
+			$('[data-choice-hint]', deactivateEl).textContent =
+				`Hora más temprana sin reservaciones: ${formatDateTimeLabel(minimum)}`;
+			$('input[type="radio"]', deactivateEl).disabled = false;
+		}
+
+		const count = Number.isInteger(overrideCount) && overrideCount > 0 ? overrideCount : null;
+		const affected = count === null
+			? 'Todas las reservaciones afectadas se cancelan'
+			: count === 1
+				? 'La reservación afectada se cancela'
+				: `Las ${count} reservaciones afectadas se cancelan`;
+		const overrideText = `Aplica ahora. ${affected} y se notifica a esos usuarios por correo.`;
+		overrideEl.hidden = !overrideCard;
+		if (overrideCard) {
+			$('[data-choice-title]', overrideEl).textContent = overrideCard.title;
+			$('[data-choice-desc]', overrideEl).textContent =
+				`${overrideText}${overrideCard.note ? ` ${overrideCard.note}` : ''}`;
+		}
+		overrideDeactivateEl.hidden = !overrideDeactivateCard;
+		if (overrideDeactivateCard) {
+			$('[data-choice-title]', overrideDeactivateEl).textContent = overrideDeactivateCard.title;
+			$('[data-choice-desc]', overrideDeactivateEl).textContent =
+				`${overrideText}${overrideDeactivateCard.note ? ` ${overrideDeactivateCard.note}` : ''}`;
+		}
+
+		// Marca la primera opción programable disponible; si ninguna, el override.
+		const radios = [deleteEl, deactivateEl, overrideEl, overrideDeactivateEl]
+			.filter((el) => !el.hidden)
+			.map((el) => $('input[type="radio"]', el))
+			.filter((radio) => !radio.disabled);
+		radios.forEach((radio, index) => { radio.checked = index === 0; });
+		refreshChoiceConfirm();
+		actionDialog.showModal();
+		radios[0]?.focus();
+	}
+
 	function askForLotAction({
 		button,
 		url,
@@ -613,7 +809,9 @@
 		scheduledAt = null,
 		scheduledAction = null,
 		hasPendingReservations = false,
+		pendingReservationsCount = null,
 	}) {
+		const slot = slotMinutes || DEFAULT_SLOT_MINUTES;
 		pendingAction = {
 			button,
 			url,
@@ -627,77 +825,91 @@
 			scheduledAction,
 			hasPendingReservations,
 		};
-		$('#action-dialog-title').textContent = kind === 'delete'
-			? `¿Cómo deseas eliminar ${lotName ? `«${lotName}»` : 'este lote'}?`
-			: `¿Cómo deseas desactivar ${lotName ? `«${lotName}»` : 'este lote'}?`;
-		$('#action-dialog-desc').textContent = kind === 'delete'
-			? `${message} La fecha queda fijada por el sistema; no se puede escoger otra. El override lo elimina ahora y cancela las reservaciones que correspondan.`
-			: `${message} Puedes programar la desactivación para una fecha y hora o desactivarlo ahora.`;
-		$('[data-action-date-field]', actionDialog).hidden =
-			kind !== 'delete' && !scheduledAt;
-		$('[data-action-date-picker-field]', actionDialog).hidden = kind === 'delete'
-			|| Boolean(scheduledAt);
+		const isDelete = kind === 'delete';
+		// Con reservaciones pendientes (y sin una acción ya programada) se usan tarjetas de opción.
+		const choiceMode = hasPendingReservations && !scheduledAction;
+		const target = lotName ? `«${lotName}»` : 'este lote';
+
+		$('#action-dialog-title').textContent = isDelete
+			? `¿Cómo deseas eliminar ${target}?`
+			: `¿Cómo deseas desactivar ${target}?`;
+		$('#action-dialog-desc').textContent = choiceMode
+			? message
+			: isDelete
+				? `${message} Puedes programar la eliminación para la fecha fijada por el sistema o eliminarlo ahora.`
+				: `${message} Puedes programar la desactivación para una fecha y hora o desactivarlo ahora.`;
+
+		hideChoiceMode();
+		$('[data-override-warning]', actionDialog).hidden = true;
+		$('[data-deactivate-now-action]', actionDialog).hidden = true;
 		$('[data-schedule-deactivation-action]', actionDialog).hidden = true;
 		$('[data-cancel-schedule-action]', actionDialog).hidden = !scheduledAction;
+
+		const minimumSlot = isDelete ? minimumDate : ceilToSlot(minimumDate, slot);
+
+		if (choiceMode) {
+			const description = 'El lote sigue activo hasta la hora programada. No se cancela ninguna reservación; las nuevas reservaciones que pasen de esa hora quedan bloqueadas.';
+			showChoiceMode({
+				deleteCard: isDelete ? {
+					title: 'Programar para después (recomendado)',
+					description,
+					fixed: formatDateTimeLabel(minimumDate.slice(0, 16)),
+					hint: canSchedule
+						? `La fecha la fija el sistema: ${windowHours} horas y ${slot} minutos después de abrir este diálogo.`
+						: 'No se puede programar: hay reservaciones que terminan después de esa fecha.',
+					enabled: canSchedule,
+				} : null,
+				deactivateCard: isDelete ? null : {
+					title: 'Programar para después (recomendado)',
+					description,
+					minimum: minimumDate,
+					slotMinutes: slot,
+				},
+				overrideCount: pendingReservationsCount,
+			});
+			return;
+		}
+
+		// Sin reservaciones pendientes (o con una acción ya programada): diseño simple.
+		$('[data-action-date-field]', actionDialog).hidden =
+			!isDelete && !scheduledAt;
+		$('[data-action-date-picker-field]', actionDialog).hidden = isDelete
+			|| Boolean(scheduledAt);
 		$('[data-override-action]', actionDialog).hidden = Boolean(scheduledAction);
 		$('[data-schedule-action]', actionDialog).hidden =
 			!canSchedule || Boolean(scheduledAction);
 		$('[data-schedule-action]', actionDialog).textContent =
-			kind === 'delete' ? 'Programar eliminación' : 'Programar desactivación';
+			isDelete ? 'Programar eliminación' : 'Programar desactivación';
 		const dateInput = $('[data-action-date]', actionDialog);
-		dateInput.type = kind === 'delete' ? 'date' : 'datetime-local';
-		dateInput.step = kind === 'delete' ? '1' : '60';
-		dateInput.min = kind === 'delete'
-			? minimumDate.slice(0, 10)
-			: minimumDate;
-		dateInput.value = kind === 'delete'
-			? minimumDate.slice(0, 10)
-			: minimumDate;
+		if (isDelete) {
+			dateInput.type = 'date';
+			dateInput.step = '1';
+			dateInput.min = minimumDate.slice(0, 10);
+			dateInput.value = minimumDate.slice(0, 10);
+		} else {
+			setSlotDateInput(dateInput, minimumDate, slot);
+		}
 		$('[data-action-date-hint]', actionDialog).textContent =
-			`La fecha y hora mínima es ${minimumDate}.`;
+			`La fecha y hora mínima es ${formatDateTimeLabel(minimumSlot.slice(0, 16))} (bloques de ${slot} minutos).`;
 		$('[data-action-datetime-display]', actionDialog).textContent =
-			kind === 'delete'
-				? minimumDate.replace('T', ' ')
+			isDelete
+				? formatDateTimeLabel(minimumDate.slice(0, 16))
 				: scheduledAt
 					? scheduledAt.replace('T', ' ')
 					: '';
 		$('[data-action-date-field] > span:first-child', actionDialog).textContent =
-			kind === 'delete' ? 'Eliminación programada' : 'Desactivación programada';
+			isDelete ? 'Eliminación programada' : 'Desactivación programada';
 		$('[data-deletion-date-hint]', actionDialog).textContent = canSchedule
-			? kind === 'delete'
-				? `Programada automáticamente para ${windowHours} horas y ${slotMinutes} minutos después de abrir este diálogo.`
+			? isDelete
+				? `Programada automáticamente para ${windowHours} horas y ${slot} minutos después de abrir este diálogo.`
 				: 'Al llegar la fecha y hora, el scheduler marcará el lote y sus pisos como inactivos.'
 			: 'No se puede programar mientras el lote tenga una eliminación programada; cancélala primero.';
 		$('[data-override-action]', actionDialog).textContent =
-			kind === 'delete'
-				? 'Eliminar ahora con override'
-				: pendingAction.hasPendingReservations
-					? 'Desactivar ahora con override'
-					: 'Desactivar ahora';
+			isDelete ? 'Eliminar ahora' : 'Desactivar ahora';
 		actionDialog.showModal();
 		$('[data-schedule-action]', actionDialog).hidden
 			? $('[data-override-action]', actionDialog).focus()
 			: $('[data-schedule-action]', actionDialog).focus();
-	}
-
-	function askForDeleteConfirmation(button) {
-		pendingAction = {
-			button,
-			url: button.dataset.deleteUrl,
-			kind: 'delete-confirm',
-		};
-		$('#action-dialog-title').textContent = '¿Eliminar este lote?';
-		$('#action-dialog-desc').textContent =
-			'Esta acción eliminará el lote, sus pisos y sus espacios. No se encontraron reservaciones pendientes.';
-		$('[data-action-date-field]', actionDialog).hidden = true;
-		$('[data-action-date-picker-field]', actionDialog).hidden = true;
-		$('[data-schedule-action]', actionDialog).hidden = true;
-		$('[data-schedule-deactivation-action]', actionDialog).hidden = true;
-		$('[data-cancel-schedule-action]', actionDialog).hidden = true;
-		$('[data-override-action]', actionDialog).hidden = false;
-		$('[data-override-action]', actionDialog).textContent = 'Eliminar lote';
-		actionDialog.showModal();
-		$('[data-override-action]', actionDialog).focus();
 	}
 
 	function askForFloorDeletion(issue, floor = null, submitAfterDecision = false) {
@@ -727,6 +939,50 @@
 		const inheritedSchedule = issue.date_to_be_deleted_inherited
 			|| issue.date_to_be_deactivated_inherited;
 		$('#action-dialog-title').textContent = 'Administrar piso';
+		hideChoiceMode();
+		const canRemoveFloor = !floor || floor.canRemove;
+		const canDeleteFloor = canRemoveFloor && !hasScheduledDeletion;
+		const floorIsActive = Boolean(floor) && floor.isActive !== false;
+		const canScheduleDeactivation = floorIsActive && !hasScheduledDeactivation
+			&& Boolean(issue.minimum_deactivation_datetime);
+		const canDeactivateNow = floorIsActive && !inheritedSchedule;
+		$('[data-deactivate-now-action]', actionDialog).hidden = true;
+		if (hasPending && !inheritedSchedule && (canDeleteFloor || canDeactivateNow)) {
+			$('#action-dialog-desc').textContent = 'El piso tiene reservaciones pendientes.';
+			$('[data-cancel-schedule-action]', actionDialog).hidden =
+				!floor || !pendingAction.scheduledAction;
+			const slot = issue.slot_minutes || DEFAULT_SLOT_MINUTES;
+			const keepsDescription = 'No se cancela ninguna reservación; las nuevas reservaciones que pasen de esa hora quedan bloqueadas.';
+			showChoiceMode({
+				deleteCard: canDeleteFloor ? {
+					title: 'Programar eliminación (recomendado)',
+					description: `El piso sigue activo hasta la fecha programada. ${keepsDescription}`,
+					fixed: formatDateTimeLabel(issue.minimum_datetime.slice(0, 16)),
+					hint: issue.can_schedule
+						? `La fecha la fija el sistema: ${issue.window_hours} horas y ${slot} minutos después de abrir este diálogo.`
+						: 'No se puede programar: hay reservaciones que terminan después de esa fecha.',
+					enabled: issue.can_schedule,
+				} : null,
+				deactivateCard: canScheduleDeactivation ? {
+					title: canDeleteFloor
+						? 'Programar desactivación'
+						: 'Programar desactivación (recomendado)',
+					description: `El piso se conserva y sigue activo hasta la hora programada. ${keepsDescription}`,
+					minimum: issue.minimum_deactivation_datetime,
+					slotMinutes: slot,
+				} : null,
+				overrideCard: canDeleteFloor ? {
+					title: 'Override: eliminar ahora',
+					note: 'El piso se elimina al guardar los cambios del lote.',
+				} : null,
+				overrideDeactivateCard: canDeactivateNow ? {
+					title: 'Override: desactivar ahora',
+					note: 'El piso se conserva y queda inactivo de inmediato.',
+				} : null,
+				overrideCount: issue.pending_reservations_count,
+			});
+			return;
+		}
 		$('#action-dialog-desc').textContent = inheritedSchedule
 			? 'Esta programación pertenece al lote padre; cancélala desde la fila del lote en la lista.'
 			: floor && !floor.canRemove
@@ -751,12 +1007,12 @@
 			!floor || !pendingAction.scheduledAction;
 		const dateInput = $('[data-action-date]', actionDialog);
 		const minimumDeactivationDate = issue.minimum_deactivation_datetime;
-		dateInput.type = 'datetime-local';
-		dateInput.step = '60';
-		dateInput.min = minimumDeactivationDate;
-		dateInput.value = minimumDeactivationDate;
+		const floorSlotMinutes = issue.slot_minutes || DEFAULT_SLOT_MINUTES;
+		const minimumShown = minimumDeactivationDate
+			? setSlotDateInput(dateInput, minimumDeactivationDate, floorSlotMinutes)
+			: '';
 		$('[data-action-date-hint]', actionDialog).textContent =
-			`La desactivación no puede ser antes del ${minimumDeactivationDate}.`;
+			`La desactivación no puede ser antes del ${minimumShown.replace('T', ' ')} (bloques de ${floorSlotMinutes} minutos).`;
 		$('[data-override-action]', actionDialog).textContent = hasPending
 			? 'Eliminar ahora con override'
 			: 'Eliminar piso';
@@ -783,13 +1039,25 @@
 			$('[data-deletion-date-hint]', actionDialog).textContent =
 				'El scheduler marcará el piso inactivo cuando llegue esta fecha y hora.';
 		}
+		$('[data-deactivate-now-action]', actionDialog).hidden = !canDeactivateNow;
 		if (!floor) {
 			$('[data-schedule-deactivation-action]', actionDialog).hidden = true;
 			$('[data-cancel-schedule-action]', actionDialog).hidden = true;
 			$('[data-action-date-picker-field]', actionDialog).hidden = true;
 		}
+		setOverrideWarning({
+			kind: 'delete',
+			hasPending,
+			count: issue.pending_reservations_count,
+			visible: !$('[data-override-action]', actionDialog).hidden,
+		});
 		actionDialog.showModal();
-		$('[data-override-action]', actionDialog).focus();
+		const preferredFloorAction = [
+			'[data-schedule-action]',
+			'[data-schedule-deactivation-action]',
+			'[data-override-action]',
+		].map((selector) => $(selector, actionDialog)).find((el) => !el.hidden);
+		preferredFloorAction?.focus();
 	}
 
 	async function prepareParentDeactivation(button) {
@@ -819,6 +1087,8 @@
 				scheduledAt: data.date_to_be_deactivated,
 				scheduledAction: data.date_to_be_deactivated ? 'deactivate' : null,
 				hasPendingReservations: data.has_pending_reservations,
+				pendingReservationsCount: data.pending_reservations_count,
+				slotMinutes: data.slot_minutes,
 			});
 		} catch (error) {
 			showToast({
@@ -846,7 +1116,7 @@
 	async function submitFloorSchedule(action, floorId, scheduledDate = null) {
 		const endpoint = action === 'cancel'
 			? 'cancel-schedule'
-			: action === 'deactivate'
+			: action === 'deactivate' || action === 'deactivate-now'
 				? 'deactivate'
 				: null;
 		if (!endpoint || !editingUrl) return;
@@ -854,7 +1124,9 @@
 		url.pathname = url.pathname.replace(/\/\d+$/, `/${floorId}/${endpoint}`);
 		const payload = action === 'cancel'
 			? { action: pendingAction.scheduledAction }
-			: { scheduled_date: scheduledDate };
+			: action === 'deactivate-now'
+				? { override: true }
+				: { scheduled_date: scheduledDate };
 		const response = await fetch(url, {
 			method: 'POST',
 			headers: {
@@ -868,8 +1140,8 @@
 		if (!response.ok) {
 			if (action === 'deactivate' && data.minimum_datetime) {
 				const dateInput = $('[data-action-date]', actionDialog);
-				dateInput.min = data.minimum_datetime;
-				dateInput.value = data.minimum_datetime;
+				setSlotDateInput(dateInput, data.minimum_datetime);
+				updateChoiceMinimum(data.minimum_datetime);
 				$('[data-action-date-hint]', actionDialog).textContent =
 					`Las reservaciones cambiaron; la fecha y hora mínima ahora es ${data.minimum_datetime}.`;
 			}
@@ -884,6 +1156,9 @@
 				} else {
 					floor.dateToBeDeactivated = null;
 				}
+			} else if (action === 'deactivate-now') {
+				floor.isActive = false;
+				floor.dateToBeDeactivated = null;
 			} else {
 				floor.dateToBeDeleted = null;
 				floor.dateToBeDeactivated = data.date_to_be_deactivated;
@@ -895,7 +1170,9 @@
 		showToast({
 			title: action === 'cancel'
 				? 'Programación cancelada'
-				: 'Desactivación de piso programada',
+				: action === 'deactivate-now'
+					? 'Piso desactivado'
+					: 'Desactivación de piso programada',
 			message: data.message,
 		});
 	}
@@ -915,22 +1192,23 @@
 			if (followLoginRedirect(response)) return;
 			const data = await response.json();
 			if (!response.ok) throw new Error(data.message || 'No se pudo verificar el lote.');
-			if (data.has_pending_reservations) {
-				askForLotAction({
-					button,
-					url: button.dataset.deleteUrl,
-					kind: 'delete',
-					message: 'Este lote o alguno de sus pisos tiene reservaciones pendientes.',
-					minimumDate: data.minimum_datetime,
-					minimumToken: data.minimum_token,
-					windowEnd: data.window_end,
-					windowHours: data.window_hours,
-					slotMinutes: data.slot_minutes,
-					canSchedule: data.can_schedule,
-				});
-			} else {
-				askForDeleteConfirmation(button);
-			}
+			askForLotAction({
+				button,
+				url: button.dataset.deleteUrl,
+				kind: 'delete',
+				lotName: button.closest('[data-lot-name]')?.dataset.lotName,
+				message: data.has_pending_reservations
+					? 'El lote o sus pisos tienen reservaciones pendientes.'
+					: 'El lote y sus pisos no tienen reservaciones pendientes.',
+				minimumDate: data.minimum_datetime,
+				minimumToken: data.minimum_token,
+				windowEnd: data.window_end,
+				windowHours: data.window_hours,
+				slotMinutes: data.slot_minutes,
+				canSchedule: data.can_schedule,
+				hasPendingReservations: data.has_pending_reservations,
+				pendingReservationsCount: data.pending_reservations_count,
+			});
 		} catch (error) {
 			showToast({
 				tone: 'error',
@@ -969,6 +1247,7 @@
 					slotMinutes: data.slot_minutes,
 					canSchedule: data.can_schedule,
 					hasPendingReservations: data.has_pending_reservations,
+					pendingReservationsCount: data.pending_reservations_count,
 				});
 				return;
 			}
@@ -1087,6 +1366,18 @@
 			});
 		}
 	});
+	$('[data-deactivate-now-action]', actionDialog).addEventListener('click', async () => {
+		if (!pendingAction?.floor || !pendingAction.floorId) return;
+		try {
+			await submitFloorSchedule('deactivate-now', pendingAction.floorId);
+		} catch (error) {
+			showToast({
+				tone: 'error',
+				title: 'No se pudo desactivar el piso',
+				message: error.message || 'Inténtalo de nuevo.',
+			});
+		}
+	});
 	$('[data-cancel-schedule-action]', actionDialog).addEventListener('click', async () => {
 		if (!pendingAction?.scheduledAction) return;
 		if (pendingAction.floor && pendingAction.floorId) {
@@ -1137,6 +1428,48 @@
 			button.disabled = false;
 		}
 	});
+	$('[data-choice-mode]', actionDialog).addEventListener('change', (event) => {
+		if (event.target.matches('[data-choice-date]')) {
+			fillChoiceTimeOptions(
+				event.target.dataset.minimum,
+				Number(event.target.dataset.slot) || DEFAULT_SLOT_MINUTES,
+			);
+		}
+		if (event.target.matches('[data-choice-date], [data-choice-time]')) {
+			$('[data-choice-card="schedule-deactivate"] input[type="radio"]', actionDialog).checked = true;
+		}
+		refreshChoiceConfirm();
+	});
+	$('[data-choice-confirm]', actionDialog).addEventListener('click', () => {
+		if (!pendingAction) return;
+		const choice = selectedChoice();
+		if (choice === 'override') {
+			$('[data-override-action]', actionDialog).click();
+		} else if (choice === 'override-deactivate') {
+			$('[data-deactivate-now-action]', actionDialog).click();
+		} else if (choice === 'schedule-delete') {
+			$('[data-schedule-action]', actionDialog).click();
+		} else if (choice === 'schedule-deactivate') {
+			const choiceDate = $('[data-choice-date]', actionDialog);
+			const choiceTime = $('[data-choice-time]', actionDialog);
+			if (!choiceDate.reportValidity()) return;
+			if (!choiceDate.value || !choiceTime.value) {
+				showToast({
+					tone: 'error',
+					title: 'Fecha u hora incompleta',
+					message: 'Escoge una fecha y una hora para programar la desactivación.',
+				});
+				return;
+			}
+			const dateInput = $('[data-action-date]', actionDialog);
+			dateInput.type = 'datetime-local';
+			dateInput.min = '';
+			dateInput.value = `${choiceDate.value}T${choiceTime.value}`;
+			$(pendingAction.floor
+				? '[data-schedule-deactivation-action]'
+				: '[data-schedule-action]', actionDialog).click();
+		}
+	});
 	$('[data-override-action]', actionDialog).addEventListener('click', () => {
 		if (!pendingAction) return;
 		if (
@@ -1164,11 +1497,9 @@
 		button.dataset.actionUrl = url;
 		void postLotAction(
 			button,
-			kind === 'delete-confirm' ? 'Lote eliminado' : 'Acción completada',
-			kind === 'delete-confirm'
-				? { confirmed: true }
-				: { override: kind === 'deactivate' ? hasPendingReservations : true },
-			kind === 'delete-confirm' || kind === 'delete' ? 'delete' : null,
+			kind === 'delete' ? 'Lote eliminado' : 'Acción completada',
+			{ override: kind === 'deactivate' ? hasPendingReservations : true },
+			kind === 'delete' ? 'delete' : null,
 		);
 	});
 	actionDialog.addEventListener('close', () => {
