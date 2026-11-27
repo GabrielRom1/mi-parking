@@ -33,3 +33,6 @@ class Config:
     RESERVATION_OPENING_HOUR = 7
     RESERVATION_CLOSING_HOUR = 22
     RESERVATION_WINDOW_HOURS = 48
+
+    # Spot search (Feature 5). A Quick Find suggestion is held for this long.
+    QUICK_FIND_HOLD_MINUTES = 5

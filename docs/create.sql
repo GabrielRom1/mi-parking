@@ -63,3 +63,14 @@ CREATE TABLE incident_reports (
 	FOREIGN KEY (user_id) REFERENCES users(id),
 	FOREIGN KEY (reservation_id) REFERENCES reservations(id)
 );
+
+CREATE TABLE spot_holds (
+	id int AUTO_INCREMENT PRIMARY KEY,
+	spot_id int NOT NULL,
+	user_id int NOT NULL,
+	start_time DATETIME NOT NULL,
+	end_time DATETIME NOT NULL,
+	expires_at DATETIME NOT NULL,
+	FOREIGN KEY (spot_id) REFERENCES spots(id),
+	FOREIGN KEY (user_id) REFERENCES users(id)
+);

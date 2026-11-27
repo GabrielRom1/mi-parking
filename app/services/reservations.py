@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from flask import current_app
 
 from app.database import db
-from app.models import Lots, Reservation, Spots
+from app.models import Lots, Reservation, SpotHold, Spots
 
 
 # Reservation times are saved without a time zone and always mean Puerto Rico time.
@@ -189,17 +189,20 @@ def _open_spots(areas, day):
     ]
 
 
-def chart_columns(user, lot=None, current=None):
+def chart_columns(user, lot=None, current=None, accessible_only=False):
     """One column per day for the availability chart, with how many spots are free in each slot.
 
-    Counts the spots of `lot`, or of every lot the user can use. A cell's
-    `level` (0-4) sets its shade: 0 means no free spot, 4 means most are free.
+    Counts the spots of `lot`, or of every lot the user can use (only the
+    accessible ones with `accessible_only`). A cell's `level` (0-4) sets its
+    shade: 0 means no free spot, 4 means most are free.
     """
     current = current or now()
     lots = [lot] if lot is not None else eligible_lots(user)
     areas = [area for each in lots for area in usable_areas(user, each)]
     days = window_days(current)
     all_spots = _open_spots(areas, days[0])
+    if accessible_only:
+        all_spots = [spot for spot in all_spots if spot.is_accessible]
     ranges = active_reservations_by_spot(
         [spot.id for spot in all_spots], _opening(days[0]), _closing(days[-1])
     )
@@ -227,11 +230,19 @@ def chart_columns(user, lot=None, current=None):
     return columns
 
 
-def lot_summary(user, lot, start, end):
-    """A lot card for the chosen time: its spots, and how many are free for the whole time."""
+def lot_summary(user, lot, start, end, accessible_only=False):
+    """A lot card for the chosen time: its spots, and how many are free for the whole time.
+
+    Also splits them into accessible and standard spots (SRS REQ.5.3).
+    With `accessible_only`, only accessible spots are counted.
+    """
     spots = _open_spots(usable_areas(user, lot), start.date()) if is_lot_active(lot) else []
+    if accessible_only:
+        spots = [spot for spot in spots if spot.is_accessible]
     ranges = active_reservations_by_spot([spot.id for spot in spots], start, end)
     free = [spot for spot in spots if not ranges[spot.id]]
+    accessible_total = sum(1 for spot in spots if spot.is_accessible)
+    accessible_free = sum(1 for spot in free if spot.is_accessible)
     return {
         'id': lot.id,
         'name': lot.name,
@@ -240,35 +251,43 @@ def lot_summary(user, lot, start, end):
         'is_active': is_lot_active(lot),
         'spots': len(spots),
         'free': len(free),
-        'accessible_free': sum(1 for spot in free if spot.is_accessible),
+        'accessible_total': accessible_total,
+        'accessible_free': accessible_free,
+        'standard_total': len(spots) - accessible_total,
+        'standard_free': len(free) - accessible_free,
     }
 
 
-def lot_summaries(user, start, end):
+def lot_summaries(user, start, end, accessible_only=False):
     """Cards for every lot the user can use, active ones first, most free spots on top."""
-    lots = [lot_summary(user, lot, start, end) for lot in eligible_lots(user)]
+    lots = [lot_summary(user, lot, start, end, accessible_only) for lot in eligible_lots(user)]
     lots.sort(key=lambda lot: (not lot['is_active'], -lot['free'], lot['name']))
     return lots
 
 
-def spot_grid(user, lot, start, end, current=None):
+def spot_grid(user, lot, start, end, current=None, accessible_only=False):
     """The floors of `lot` the user can use, each with its spots for the chosen time.
 
     A spot is 'available' if it's free for the whole time, 'reserved' if
-    someone has part of it, or 'full' if that day has no free slot left.
-    Only available spots the user is allowed to take are selectable.
+    someone has part of it (or is holding it from Quick Find), or 'full' if
+    that day has no free slot left. Only available spots the user is allowed
+    to take are selectable. With `accessible_only`, only accessible spots are listed.
     """
     current = current or now()
     day = start.date()
     areas = [area for area in usable_areas(user, lot) if is_lot_active(area)]
     spots = _open_spots(areas, day)
-    ranges = active_reservations_by_spot([spot.id for spot in spots], _opening(day), _closing(day))
+    if accessible_only:
+        spots = [spot for spot in spots if spot.is_accessible]
+    spot_ids = [spot.id for spot in spots]
+    ranges = active_reservations_by_spot(spot_ids, _opening(day), _closing(day))
+    held = SpotHold.held_by_others(spot_ids, start, end, user.id, current)
 
     floors = []
     for area in areas:
         tiles = []
         for spot in (spot for spot in spots if spot.lot_id == area.id):
-            if not _is_taken(ranges[spot.id], start, end):
+            if not _is_taken(ranges[spot.id], start, end) and spot.id not in held:
                 state = 'available'
             elif any(slot['state'] == 'free' for slot in day_timeline(day, ranges[spot.id], current)):
                 state = 'reserved'
@@ -281,6 +300,8 @@ def spot_grid(user, lot, start, end, current=None):
                 'is_accessible': bool(spot.is_accessible),
                 'selectable': state == 'available' and spot.is_reservable_by(user),
             })
+        if not tiles:
+            continue
         floors.append({
             'number': floor_number(area),
             'free': sum(1 for tile in tiles if tile['state'] == 'available'),
@@ -346,9 +367,12 @@ def reserve(user, spot_id, start, end):
             raise ReservationError('Ya tienes una reservación en ese horario.')
         if overlapping.filter(Reservation.spot_id == spot.id).first() is not None:
             raise ReservationError('Este espacio ya está reservado en ese horario. Escoge otro horario u otro espacio.')
+        if SpotHold.held_by_others([spot.id], start, end, user.id, current):
+            raise ReservationError('Otra persona está considerando este espacio en este momento. Escoge otro espacio o inténtalo en unos minutos.')
 
         reservation = Reservation.create(user, spot, start, end)
         db.session.add(reservation)
+        SpotHold.release_for_user(user.id)
         db.session.commit()
     except Exception:
         db.session.rollback()
