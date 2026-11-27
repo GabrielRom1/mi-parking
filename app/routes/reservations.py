@@ -34,6 +34,7 @@ from app.services.search import (
     quick_find_range,
     release_holds,
     search_lots,
+    sort_heading,
     starts_now,
 )
 
@@ -118,6 +119,7 @@ def index():
         lots=search_lots(user, start, end) if start else [],
         all_lots=eligible_lots(user),
         sort_choices=SORT_CHOICES,
+        sort_heading=sort_heading('available'),
         csrf=generate_csrf(),  # for the Quick Find requests the page sends without a form
         accessible_filter=bool(user.requires_accessible_spot),
         chart_lot=None,
@@ -145,16 +147,18 @@ def lots():
     user = _current_user()
     start, end = parse_range(request.args)
     query = request.args.get('q', '')
+    order = request.args.get('sort', 'available')
     lots = search_lots(
         user, start, end,
         query=query,
-        order=request.args.get('sort', 'available'),
+        order=order,
         accessible_only=_accessible_only(user),
     ) if start else []
     return render_template(
         'reservations/include/lots.html',
         lots=lots,
         searching=bool(query.strip()) or _accessible_only(user),
+        sort_heading=sort_heading(order),
         chart_lot=_chart_lot(user),
         start=start,
         end=end,

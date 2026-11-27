@@ -66,6 +66,18 @@ def _matches(lot, needle):
     return needle in _normalize(lot['name']) or needle in _normalize(lot['location'])
 
 
+# What the lot list's heading says for each sort order (Screen #4: "Ordered by availability").
+SORT_HEADINGS = {
+    'available': 'Ordenados por disponibilidad',
+    'name': 'Ordenados por nombre',
+    'free': 'Gratis primero, luego por disponibilidad',
+}
+
+
+def sort_heading(order):
+    return SORT_HEADINGS.get(order, SORT_HEADINGS['available'])
+
+
 def _sort_key(order):
     if order == 'name':
         return lambda lot: (not lot['is_active'], _normalize(lot['name']))

@@ -5,7 +5,7 @@
 	<p class="font-semibold">
 		{% if start %}{{ lots | length }} {{ 'lote' if lots | length == 1 else 'lotes' }} para {{ start | fecha_corta }} · {{ start | hora }} – {{ end | hora }}{% else %}No quedan horarios para reservar ahora{% endif %}
 	</p>
-	<p class="text-[13px] text-ink/60">Ordenados por disponibilidad</p>
+	<p class="text-[13px] text-ink/60">{{ sort_heading }}</p>
 </div>
 
 {% if lots %}
