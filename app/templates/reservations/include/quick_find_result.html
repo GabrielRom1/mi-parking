@@ -1,0 +1,56 @@
+{# Quick Find result (SRS REQ.5.1): the suggested spot, held for a few minutes, with Reservar and Buscar otro.
+	Provisional layout until the Figma frames. #}
+{% from 'reservations/include/icons.html' import icon %}
+{% from 'reservations/include/dialog.html' import close_button, details_card, primary_button, secondary_button %}
+
+<form data-quick-find-form action="{{ url_for('reservations.quick_find_result') }}" method="post" class="flex flex-col gap-4 p-5 sm:p-7" data-step="quick-find-result"
+	{% if spot %}data-spot-id="{{ spot.id }}" data-lot-id="{{ lot.id }}" data-start="{{ start.isoformat(timespec='minutes') }}" data-end="{{ end.isoformat(timespec='minutes') }}"{% endif %}>
+	{{ form.csrf_token }}
+	<input type="hidden" name="lot" value="{{ form.lot.data or '' }}">
+	<input type="hidden" name="duration" value="{{ form.duration.data or '' }}">
+	{% if start %}
+		<input type="hidden" name="start_time" value="{{ start.isoformat(timespec='minutes') }}">
+		<input type="hidden" name="end_time" value="{{ end.isoformat(timespec='minutes') }}">
+	{% endif %}
+	<input type="hidden" name="skip" value="{{ skip }}">
+
+	<div class="flex items-start justify-between gap-4">
+		<div>
+			<h2 class="flex items-center gap-2 font-['Barlow_Semi_Condensed',sans-serif] text-[26px] leading-8 font-semibold">{{ icon('zap', 'size-6 text-brand') }}Búsqueda rápida</h2>
+			{% if start %}<p class="text-[14px] text-ink/70">{{ start | fecha_corta }} · {{ start | hora }} – {{ end | hora }}</p>{% endif %}
+		</div>
+		{{ close_button() }}
+	</div>
+
+	{% if error %}
+		<p role="alert" class="rounded-lg border border-[#b00020] bg-[#fff0f2] px-3 py-3 font-semibold text-[#b00020]">{{ error }}</p>
+	{% elif not spot %}
+		<div class="rounded-xl bg-gray-50 px-5 py-8 text-center">
+			<p class="font-semibold">No hay espacios disponibles</p>
+			<p class="mt-1 text-[14px] text-ink/70">{% if start %}No encontramos otro espacio para este horario. Prueba otro lote u otra duración.{% else %}Ya no quedan horarios para reservar hoy. Vuelve más tarde.{% endif %}</p>
+		</div>
+	{% else %}
+		<div class="flex items-start gap-3 rounded-xl bg-[#fdeef0] px-4 py-3">
+			{{ icon('car', 'size-5 mt-0.5 text-brand') }}
+			<div>
+				<p class="font-semibold">Espacio {{ label }} · Piso {{ floor }}{% if spot.is_accessible %} · accesible{% endif %}</p>
+				<p class="text-[14px] text-ink/70">Lo apartamos para ti por {{ config.QUICK_FIND_HOLD_MINUTES }} minutos mientras decides.</p>
+			</div>
+		</div>
+		{{ details_card([
+			('Lote', lot.name),
+			('Ubicación', lot.location),
+			('Fecha', (start | fecha | capitalize) ~ ' de ' ~ start.year),
+			('Hora', (start | hora) ~ ' – ' ~ (end | hora)),
+		]) }}
+	{% endif %}
+
+	<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+		{% if spot %}
+			<button type="submit" class="{{ secondary_button }}">Buscar otro</button>
+			<button type="button" data-quick-find-reserve class="{{ primary_button }}">{{ icon('circle-check') }}Reservar</button>
+		{% else %}
+			<button type="button" data-close-dialog class="{{ secondary_button }}">Cerrar</button>
+		{% endif %}
+	</div>
+</form>

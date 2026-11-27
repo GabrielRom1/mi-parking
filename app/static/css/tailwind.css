@@ -265,6 +265,9 @@
   .right-3 {
     right: calc(var(--spacing) * 3);
   }
+  .right-3\.5 {
+    right: calc(var(--spacing) * 3.5);
+  }
   .right-\[max\(16px\,calc\(\(100vw-1200px\)\/2\)\)\] {
     right: max(16px, calc((100vw - 1200px) / 2));
   }
@@ -279,6 +282,9 @@
   }
   .left-3 {
     left: calc(var(--spacing) * 3);
+  }
+  .left-3\.5 {
+    left: calc(var(--spacing) * 3.5);
   }
   .z-10 {
     z-index: 10;
@@ -647,6 +653,9 @@
   }
   .grid-cols-\[96px_1fr\] {
     grid-template-columns: 96px 1fr;
+  }
+  .grid-cols-\[auto_auto\] {
+    grid-template-columns: auto auto;
   }
   .flex-col {
     flex-direction: column;
@@ -1383,9 +1392,6 @@
     --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
-  .filter {
-    filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
-  }
   .transition {
     transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
     transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
@@ -2000,6 +2006,15 @@
   inherits: false;
   initial-value: 0 0 #0000;
 }
+@property --tw-duration {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-content {
+  syntax: "*";
+  initial-value: "";
+  inherits: false;
+}
 @property --tw-blur {
   syntax: "*";
   inherits: false;
@@ -2051,15 +2066,6 @@
 }
 @property --tw-drop-shadow-size {
   syntax: "*";
-  inherits: false;
-}
-@property --tw-duration {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-content {
-  syntax: "*";
-  initial-value: "";
   inherits: false;
 }
 @property --tw-outline-style {
@@ -2134,6 +2140,8 @@
       --tw-ring-offset-width: 0px;
       --tw-ring-offset-color: #fff;
       --tw-ring-offset-shadow: 0 0 #0000;
+      --tw-duration: initial;
+      --tw-content: "";
       --tw-blur: initial;
       --tw-brightness: initial;
       --tw-contrast: initial;
@@ -2147,8 +2155,6 @@
       --tw-drop-shadow-color: initial;
       --tw-drop-shadow-alpha: 100%;
       --tw-drop-shadow-size: initial;
-      --tw-duration: initial;
-      --tw-content: "";
       --tw-outline-style: solid;
       --tw-scale-x: 1;
       --tw-scale-y: 1;
