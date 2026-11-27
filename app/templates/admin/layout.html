@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block head %}
+	{{ super() }}
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+{% endblock %}
+
+{# Flash messages are shown inside the page, under the header. #}
+{% block flashes %}{% endblock %}
+
+{% block body %}
+<div class="min-h-screen bg-gray-50 font-body text-body text-ink">
+	{% include 'include/admin_header.html' %}
+
+	<main class="mx-auto flex max-w-[1200px] flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10 xl:px-0">
+		{% with messages = get_flashed_messages(with_categories=true) %}
+			{% for category, message in messages %}
+				<p role="status" class="rounded-xl border border-gray-200 bg-white px-4 py-3 font-semibold">{{ message }}</p>
+			{% endfor %}
+		{% endwith %}
+		{% block content %}{% endblock %}
+	</main>
+</div>
+{% endblock %}
