@@ -28,14 +28,15 @@ def create_app(config_class=Config):
 
 
     app.config.update(
-        SCHEDULER_API_ENABLED=True,
+        SCHEDULER_API_ENABLED=False,
     )
 
     scheduler.init_app(app)
     
     from app.jobs import register_jobs
     register_jobs(scheduler, app)
-    scheduler.start()
+    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        scheduler.start()
 
 
 

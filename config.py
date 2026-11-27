@@ -11,6 +11,7 @@ class Config:
     # Secret key for session management and CSRF protection
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     BCRYPT_HANDLE_LONG_PASSWORDS = True
+    DEBUG = os.environ.get('FLASK_DEBUG', '1').lower() in ('1', 'true')
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=30)
     SESSION_REFRESH_EACH_REQUEST = True
 
