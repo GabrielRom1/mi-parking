@@ -1,0 +1,65 @@
+{# Lot cards for the time picked on the chart (SDS Screen #4). #}
+{% from 'reservations/include/icons.html' import icon %}
+
+<div class="flex flex-wrap items-baseline justify-between gap-2">
+	<p class="font-semibold">
+		{% if start %}{{ lots | length }} {{ 'lote' if lots | length == 1 else 'lotes' }} para {{ start | fecha_corta }} · {{ start | hora }} – {{ end | hora }}{% else %}No quedan horarios para reservar ahora{% endif %}
+	</p>
+	<p class="text-[13px] text-ink/60">Ordenados por disponibilidad</p>
+</div>
+
+{% if lots %}
+	<ul class="mt-3 flex flex-col gap-3">
+		{% for lot in lots %}
+			{% set ratio = (lot.free / lot.spots) if lot.spots else 0 %}
+			{% set selected = chart_lot is not none and chart_lot.id == lot.id %}
+			<li data-lot-card data-lot-id="{{ lot.id }}" {% if selected %}data-selected{% endif %}
+				class="flex flex-col gap-4 rounded-xl border p-5 transition sm:flex-row sm:items-center sm:gap-6 {{ 'cursor-pointer border-gray-200 bg-white hover:border-gray-300 data-[selected]:border-brand data-[selected]:ring-1 data-[selected]:ring-brand' if lot.is_active else 'border-gray-200 bg-[#efefef] text-ink/55' }}">
+				<div class="flex min-w-0 flex-1 flex-col gap-1">
+					<div class="flex flex-wrap items-center gap-2">
+						<h2 class="text-[17px] font-semibold">{{ lot.name }}</h2>
+						<span class="rounded-full bg-gray-100 px-2 py-0.5 text-[13px] font-semibold text-ink/70">{{ 'Pago' if lot.is_paid else 'Gratis' }}</span>
+						{% if not lot.is_active %}
+							<span class="inline-flex items-center gap-1 rounded-full bg-gray-200 px-2 py-0.5 text-[13px] font-semibold text-ink/70"><span class="size-1.5 rounded-full bg-ink/60"></span>Inactivo</span>
+						{% endif %}
+					</div>
+					<p class="flex items-center gap-1.5 text-[14px] text-ink/70">{{ icon('map-pin', 'size-3.5') }}{{ lot.location }}</p>
+					{% if lot.is_active %}
+						<p class="flex items-center gap-1.5 text-[14px] text-ink/70">{{ icon('accessibility', 'size-3.5') }}{{ lot.accessible_free }} {{ 'accesible libre' if lot.accessible_free == 1 else 'accesibles libres' }}</p>
+					{% endif %}
+				</div>
+
+				<div class="flex w-full flex-col gap-1.5 sm:w-52">
+					{% if lot.is_active %}
+						<p class="font-semibold {{ 'text-green-700' if ratio >= 0.25 else 'text-amber-700' }}">{{ lot.free }} de {{ lot.spots }} libres</p>
+						<div class="h-1.5 overflow-hidden rounded-full bg-gray-200" role="presentation">
+							<div class="h-full rounded-full {{ 'bg-green-700' if ratio >= 0.25 else 'bg-amber-700' }}" style="width: {{ (ratio * 100) | round | int }}%"></div>
+						</div>
+					{% else %}
+						<p class="font-semibold">No acepta reservaciones</p>
+					{% endif %}
+				</div>
+
+				{% if lot.is_active %}
+					<button type="button" data-reserve data-lot-id="{{ lot.id }}" {% if not lot.free %}disabled{% endif %}
+						class="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg bg-brand px-5 font-semibold text-white transition hover:bg-[#c8002c] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-brand/30 disabled:cursor-not-allowed disabled:bg-brand/40">Reservar</button>
+				{% else %}
+					<button type="button" disabled class="inline-flex h-10 cursor-not-allowed items-center justify-center rounded-lg border border-gray-300 bg-white/60 px-5 font-semibold text-ink/40">Reservar</button>
+				{% endif %}
+			</li>
+		{% endfor %}
+	</ul>
+{% elif start %}
+	<div class="mt-3 rounded-xl border border-gray-200 bg-white p-8 text-center">
+		<p class="font-semibold">No hay lotes disponibles para ti.</p>
+		<p class="mt-1 text-ink/70">Tu cuenta no tiene un rol asignado o todavía no hay lotes abiertos para tu rol.</p>
+	</div>
+{% endif %}
+
+<p class="mt-4 text-[13px] text-ink/60">
+	{% if chart_lot %}
+		Mostrando la disponibilidad solo de {{ chart_lot.name }}. Escoge “Todos los lotes” en la gráfica para comparar todos los lotes otra vez.
+	{% else %}
+		Consejo: escoge un lote en el selector de la gráfica (o haz clic en un lote) para ver solo su disponibilidad.
+	{% endif %}
+</p>

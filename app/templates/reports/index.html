@@ -1,0 +1,142 @@
+{% extends "admin/layout.html" %}
+{% from 'reservations/include/icons.html' import icon %}
+
+{% set active_nav = 'reports' %}
+{% set role_labels = {'estudiante': ('Estudiante', 'estudiantes'), 'empleado': ('Empleado', 'empleados')} %}
+{% set overline_class = "text-[11px] leading-4 font-bold tracking-[0.06em] text-ink/60 uppercase" %}
+{% set segment_class = "h-9 cursor-pointer rounded-md px-3.5 whitespace-nowrap text-ink/70 hover:text-ink aria-pressed:bg-white aria-pressed:font-semibold aria-pressed:text-ink aria-pressed:shadow-sm" %}
+{% set option_class = "flex cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2 data-[active]:bg-gray-100 aria-selected:font-semibold aria-selected:text-brand" %}
+
+{% macro metric(name, label) -%}
+	<article data-metric="{{ name }}" class="flex min-w-0 flex-col gap-1 rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
+		<h2 class="{{ overline_class }}">{{ label }}</h2>
+		<p data-metric-value class="truncate font-['Barlow_Semi_Condensed',sans-serif] text-[28px] leading-9 font-semibold tabular-nums transition-opacity group-aria-busy/page:opacity-40 motion-reduce:transition-none">—</p>
+		<p data-metric-detail class="text-[13px] text-ink/60">Cargando…</p>
+	</article>
+{%- endmacro %}
+
+{% block title %}Reportes de lotes - MiParking{% endblock %}
+
+{% block content %}
+<div data-reports-page data-report-url="{{ url_for('reports.data') }}" class="group/page flex flex-col gap-6">
+
+	<div class="flex flex-col gap-1.5">
+		<h1 class="font-['Barlow_Semi_Condensed',sans-serif] text-[36px] leading-10 font-semibold">Reportes de lotes</h1>
+		<p data-report-subtitle class="text-ink/70">Cargando reporte…</p>
+	</div>
+
+	<div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+		<div data-lot-picker class="relative w-full sm:w-[340px]">
+			<label for="report-lot" class="sr-only">Lote</label>
+			<span class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink/50">{{ icon('search') }}</span>
+			<input id="report-lot" data-lot-input type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="report-lot-options" autocomplete="off" spellcheck="false" placeholder="Buscar o seleccionar un lote…"
+				class="h-11 w-full rounded-lg border border-gray-300 bg-white pr-11 pl-9 text-ink outline-none placeholder:text-ink/45 focus:border-brand focus:ring-4 focus:ring-brand/15">
+			<button type="button" data-lot-toggle tabindex="-1" aria-label="Mostrar lotes" class="absolute top-1/2 right-1.5 grid size-8 -translate-y-1/2 cursor-pointer place-items-center rounded-md text-ink/60 hover:bg-gray-100">{{ icon('chevron-down') }}</button>
+			<ul id="report-lot-options" data-lot-options role="listbox" aria-label="Lotes" hidden class="absolute z-20 mt-1.5 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+				<li id="report-lot-all" role="option" data-value="" data-label="Todos los lotes" data-search="todos los lotes" aria-selected="true" class="{{ option_class }}">Todos los lotes</li>
+				{% for lot in lots | sort(attribute='name') %}
+					<li id="report-lot-{{ lot.id }}" role="option" data-value="{{ lot.id }}" data-label="{{ lot.name }}" data-search="{{ lot.name }} {{ lot.location }}" aria-selected="false" class="{{ option_class }}">
+						<span class="min-w-0">
+							<span class="block truncate">{{ lot.name }}</span>
+							<span class="block truncate text-[13px] font-normal text-ink/60">{{ lot.location }}</span>
+						</span>
+						{% if not lot.is_active %}<span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[12px] font-semibold text-ink/60">Inactivo</span>{% endif %}
+					</li>
+				{% endfor %}
+				<li data-lot-empty hidden role="presentation" class="px-3 py-2 text-ink/60">Ningún lote coincide con la búsqueda.</li>
+			</ul>
+		</div>
+
+		<div class="flex items-center gap-2.5" role="group" aria-labelledby="report-period-label">
+			<span id="report-period-label" class="text-[14px] font-semibold text-ink/60">Periodo</span>
+			<div class="flex rounded-lg bg-gray-100 p-1">
+				<button type="button" data-period="today" aria-pressed="true" class="{{ segment_class }}">Hoy</button>
+				<button type="button" data-period="week" aria-pressed="false" class="{{ segment_class }}">Últimos 7 días</button>
+			</div>
+		</div>
+
+		<div class="flex items-center gap-2.5" role="group" aria-labelledby="report-role-label">
+			<span id="report-role-label" class="text-[14px] font-semibold text-ink/60">Rol</span>
+			<div class="flex flex-wrap rounded-lg bg-gray-100 p-1">
+				<button type="button" data-role="" data-scope-label="" aria-pressed="true" class="{{ segment_class }}">Todos los roles</button>
+				{% for role in roles %}
+					{% set label, scope = role_labels.get(role.name, (role.name | capitalize, role.name)) %}
+					<button type="button" data-role="{{ role.name }}" data-scope-label="{{ scope }}" aria-pressed="false" class="{{ segment_class }}">{{ label }}</button>
+				{% endfor %}
+			</div>
+		</div>
+	</div>
+
+	<div data-report-error hidden role="alert" class="flex flex-wrap items-center gap-3 rounded-xl border border-brand/30 bg-red-50 px-4 py-3">
+		{{ icon('alert-circle', 'size-5 text-brand') }}
+		<p class="flex-1 font-semibold">No se pudo cargar el reporte. Inténtalo de nuevo.</p>
+		<button type="button" data-report-retry class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 font-semibold hover:bg-gray-50">{{ icon('rotate-ccw') }}Reintentar</button>
+	</div>
+
+	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.4fr_1fr_1fr]">
+		{{ metric('reservations', 'Total de reservaciones') }}
+		{{ metric('occupancy', 'Ocupación promedio') }}
+		{{ metric('peak', 'Ocupación pico') }}
+		{{ metric('accessible', 'Ocupación accesible') }}
+		{{ metric('incidents', 'Incidentes') }}
+	</div>
+
+	<div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+		<section class="overflow-hidden rounded-2xl border border-gray-200 bg-white" aria-labelledby="ranking-title">
+			<div class="px-5 pt-5 pb-4 sm:px-6">
+				<h2 id="ranking-title" class="font-['Barlow_Semi_Condensed',sans-serif] text-[22px] leading-7 font-semibold">Lotes clasificados por uso</h2>
+				<p data-ranking-hint class="text-[14px] text-ink/60">Por ocupación promedio.</p>
+			</div>
+			<div aria-hidden="true" class="{{ overline_class }} hidden grid-cols-[56px_minmax(0,1fr)_minmax(0,260px)_20px] gap-4 border-y border-gray-200 bg-[#f1efea] px-6 py-2.5 sm:grid">
+				<span>Puesto</span><span>Lote</span><span>Ocupación promedio</span><span></span>
+			</div>
+			<ol data-ranking aria-labelledby="ranking-title" class="divide-y divide-gray-200 border-t border-gray-200 transition-opacity group-aria-busy/page:opacity-50 sm:border-t-0 motion-reduce:transition-none"></ol>
+			<p data-ranking-empty hidden class="px-6 py-10 text-center text-ink/60">No hay lotes para mostrar en este periodo.</p>
+		</section>
+
+		<section class="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6" aria-labelledby="chart-title">
+			<h2 id="chart-title" class="flex items-start gap-2 font-['Barlow_Semi_Condensed',sans-serif] text-[22px] leading-7 font-semibold">
+				{{ icon('chart-column', 'size-5 mt-1 text-brand') }}
+				<span>Frecuencia de reservaciones · <span data-chart-scope>todos los lotes</span></span>
+			</h2>
+			<p data-chart-caption class="mt-1 text-[14px] text-ink/60">Reservaciones que empiezan en cada intervalo.</p>
+			<div class="relative mt-4 transition-opacity group-aria-busy/page:opacity-50 motion-reduce:transition-none">
+				<div data-frequency-chart class="h-[320px] w-full [&_.axis]:fill-ink/55 [&_.axis]:text-[12px] [&_.bar]:fill-brand [&_.bar.active]:fill-[#a8001f] [&_.grid]:stroke-gray-200 [&_.hit]:cursor-pointer [&_.hit]:fill-transparent [&_.now-label]:fill-ink/70 [&_.now-label]:text-[12px] [&_.now-label]:font-semibold [&_.now-line]:stroke-ink/45"></div>
+				<p data-frequency-empty hidden class="absolute inset-0 grid place-items-center px-6 text-center text-ink/60">No hay reservaciones en este periodo.</p>
+				<div data-chart-tooltip hidden class="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-md bg-ink px-2 py-1 text-[13px] font-semibold whitespace-nowrap text-white tabular-nums"></div>
+			</div>
+		</section>
+	</div>
+
+	<template data-rank-row-template>
+		<li>
+			<button type="button" data-rank-button class="group grid w-full grid-cols-[44px_minmax(0,1fr)_20px] items-center gap-x-4 gap-y-2 px-5 py-3.5 text-left transition-colors enabled:cursor-pointer enabled:hover:bg-gray-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand data-[active=false]:bg-gray-50 sm:grid-cols-[56px_minmax(0,1fr)_minmax(0,260px)_20px] sm:px-6 motion-reduce:transition-none">
+				<span data-rank class="grid h-8 w-11 place-items-center rounded-md bg-gray-100 text-[14px] font-semibold text-ink/70 tabular-nums group-data-[top=true]:bg-red-50 group-data-[top=true]:text-brand"></span>
+				<span class="min-w-0">
+					<span class="flex items-center gap-2">
+						<span data-rank-name class="truncate font-semibold group-data-[active=false]:text-ink/50"></span>
+						<span data-rank-inactive hidden class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-[12px] font-semibold text-ink/70"><span class="size-1.5 rounded-full bg-ink/60"></span>Inactivo</span>
+					</span>
+					<span class="mt-0.5 flex items-center gap-1 text-[13px] text-ink/60 group-data-[active=false]:text-ink/45">
+						{{ icon('map-pin', 'size-3.5') }}
+						<span data-rank-location class="truncate"></span>
+					</span>
+				</span>
+				<span class="col-start-2 row-start-2 flex items-center gap-3 sm:col-start-auto sm:row-start-auto">
+					<span data-rank-meter role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Ocupación promedio" class="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+						<span data-rank-bar class="block h-full rounded-full bg-brand group-data-[active=false]:bg-cool-gray"></span>
+					</span>
+					<span class="shrink-0 leading-tight whitespace-nowrap">
+						<span data-rank-count class="block font-semibold tabular-nums group-data-[active=false]:text-ink/50"></span>
+						<span class="block text-[12px] text-ink/60">espacios reservados</span>
+					</span>
+				</span>
+				<span class="text-ink/50 group-disabled:invisible">{{ icon('chevron-right', 'size-5') }}</span>
+			</button>
+		</li>
+	</template>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" defer></script>
+<script src="{{ url_for('static', filename='js/reports.js') }}" defer></script>
+{% endblock %}

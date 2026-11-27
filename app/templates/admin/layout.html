@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from 'reservations/include/icons.html' import icon %}
+
+{% block head %}
+	{{ super() }}
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+{% endblock %}
+
+{# Flash messages are shown inside the page, under the header. #}
+{% block flashes %}{% endblock %}
+
+{% set nav_items = [
+	('management', 'Gestión', management_url),
+	('reports', 'Reportes', url_for('reports.index')),
+] %}
+
+{% block body %}
+<div class="min-h-screen bg-[#f4f4f4] font-['Source_Sans_3',system-ui,sans-serif] text-[15px] leading-[22px] text-ink">
+	<header class="border-t-4 border-b border-t-brand border-b-gray-200 bg-white">
+		<div class="mx-auto flex h-[68px] max-w-[1200px] items-center justify-between px-4 sm:px-6">
+			<div class="flex items-center gap-2.5">
+				<a href="{{ url_for('reports.index') }}" class="font-['Barlow_Semi_Condensed',sans-serif] text-[28px] leading-8 font-bold"><span class="text-brand">Mi</span>Parking</a>
+				<span class="rounded-full bg-gray-100 px-2 py-0.5 text-[13px] font-semibold text-ink/70">Admin</span>
+			</div>
+
+			<div class="hidden h-full items-center gap-6 md:flex">
+				<nav class="flex h-full items-stretch gap-7" aria-label="Administración">
+					{% for key, label, href in nav_items %}
+						<a href="{{ href }}" {% if key == active_nav %}aria-current="page"{% endif %} class="flex items-center border-b-[3px] pt-[3px] {{ 'border-brand font-semibold' if key == active_nav else 'border-transparent text-ink/70 hover:text-ink' }}">{{ label }}</a>
+					{% endfor %}
+				</nav>
+				<div class="h-7 w-px bg-gray-200"></div>
+				<details class="group relative">
+					<summary class="flex cursor-pointer list-none items-center gap-2.5 rounded-lg py-1 [&::-webkit-details-marker]:hidden">
+						<span class="grid size-9 place-items-center rounded-full bg-red-50 text-[13px] font-semibold text-brand" aria-hidden="true">{{ (user.first_name[:1] ~ user.last_name[:1]) | upper }}</span>
+						<span class="leading-tight">
+							<span class="block font-semibold">{{ user.first_name }} {{ user.last_name }}</span>
+							<span class="block text-[13px] text-ink/60">Administrador</span>
+						</span>
+						{{ icon('chevron-down', 'size-4 text-ink/60 transition group-open:rotate-180') }}
+					</summary>
+					<div class="absolute right-0 z-30 mt-2 w-44 rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+						<a href="{{ url_for('auth_bp.logout') }}" class="block rounded-md px-3 py-2 font-semibold hover:bg-gray-100">Cerrar sesión</a>
+					</div>
+				</details>
+			</div>
+
+			<details class="group relative md:hidden">
+				<summary class="grid size-10 cursor-pointer list-none place-items-center rounded-lg hover:bg-gray-100 [&::-webkit-details-marker]:hidden" aria-label="Menú">{{ icon('menu', 'size-6') }}</summary>
+				<div class="absolute right-0 z-30 mt-2 w-60 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+					<p class="px-3 pt-1 pb-2 text-[13px] text-ink/60">{{ user.first_name }} {{ user.last_name }} · Administrador</p>
+					{% for key, label, href in nav_items %}
+						<a href="{{ href }}" {% if key == active_nav %}aria-current="page"{% endif %} class="block rounded-md px-3 py-2 hover:bg-gray-100 {{ 'font-semibold text-brand' if key == active_nav else '' }}">{{ label }}</a>
+					{% endfor %}
+					<a href="{{ url_for('auth_bp.logout') }}" class="mt-1 block rounded-md border-t border-gray-100 px-3 py-2 font-semibold hover:bg-gray-100">Cerrar sesión</a>
+				</div>
+			</details>
+		</div>
+	</header>
+
+	<main class="mx-auto flex max-w-[1200px] flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
+		{% with messages = get_flashed_messages(with_categories=true) %}
+			{% for category, message in messages %}
+				<p role="status" class="rounded-xl border border-gray-200 bg-white px-4 py-3 font-semibold">{{ message }}</p>
+			{% endfor %}
+		{% endwith %}
+		{% block content %}{% endblock %}
+	</main>
+</div>
+{% endblock %}

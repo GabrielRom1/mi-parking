@@ -1,5 +1,7 @@
 # CREATE TABLE reservations(
 from app.database import db
+from app.models.Roles import Role
+from app.models.User import User
 
 from .Spots import Spots
 
@@ -38,6 +40,36 @@ class Reservation(db.Model):
 	cancelation_reason = db.Column(db.String(500), nullable=True)
 
 	incident_report = db.relationship('IncidentReport', back_populates='reservation', uselist=False)
+
+	@classmethod
+	def active_overlapping(cls, start, end):
+		"""Active reservations that share any time with [start, end)."""
+		return cls.query.filter(
+			cls.status == 'Active',
+			cls.start_time < end,
+			cls.end_time > start,
+		)
+
+	@classmethod
+	def for_usage_report(cls, spot_ids, start, end, role_name=None):
+		"""Reservations on the given spots that share time with [start, end) and weren't cancelled.
+		With `role_name`, only those made by users with that role."""
+		if not spot_ids:
+			return []
+		query = cls.query.filter(
+			cls.spot_id.in_(spot_ids),
+			cls.status != 'Cancelled',
+			cls.start_time < end,
+			cls.end_time > start,
+		)
+		if role_name:
+			query = query.join(cls.user).join(User.role).filter(Role.name == role_name)
+		return query.all()
+
+	@classmethod
+	def create(cls, user, spot, start, end):
+		"""The caller adds and commits."""
+		return cls(user=user, spot=spot, start_time=start, end_time=end, status='Active')
 	
 
 	@classmethod
