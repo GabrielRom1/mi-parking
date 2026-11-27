@@ -2,7 +2,7 @@ from datetime import datetime
 import unicodedata
 from zoneinfo import ZoneInfo
 
-from flask import Blueprint, jsonify, render_template, request, session
+from flask import Blueprint, current_app, jsonify, render_template, request, session
 
 from app.decorators import role_required
 from app.forms.lot_form import LotForm
@@ -198,6 +198,8 @@ def delete(lot_id):
             scheduled=True,
             date_to_be_deleted=result['date_to_be_deleted'].isoformat(),
         )
+    for reservation in result['canceled']:
+        send_cancellation_email(reservation.user, reservation)
     return jsonify(
         message=(
             "El lote fue eliminado físicamente junto con sus pisos y espacios."
@@ -283,6 +285,8 @@ def deactivate(lot_id):
         return jsonify(
             message=str(error),
             minimum_datetime=error.minimum_date.isoformat(timespec='minutes'),
+            has_pending_reservations=error.has_pending_reservations,
+            slot_minutes=current_app.config['RESERVATION_SLOT_MINUTES'],
         ), 409
     except ValueError as error:
         return jsonify(message=str(error)), 400
