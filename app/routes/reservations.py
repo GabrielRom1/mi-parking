@@ -6,6 +6,7 @@ from app.forms.reservation_form import ReservationForm
 from app.models import Lots, Reservation, Spots, User
 from app.services.calendar import build_ics, ics_filename
 from app.services.notifications import send_email
+from app.view_as import enter_user_view_for_admins
 from app.services.reservations import (
     ReservationError,
     can_use_area,
@@ -25,6 +26,8 @@ from app.services.reservations import (
 )
 
 reservations_bp = Blueprint('reservations', __name__)
+# These are user pages, so an admin who opens one switches to 'View as user'.
+reservations_bp.before_request(enter_user_view_for_admins)
 
 _DAYS = ('lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo')
 _MONTHS = (

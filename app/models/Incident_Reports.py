@@ -32,3 +32,16 @@ class IncidentReport(db.Model):
 	admin_notes = db.Column(db.String(500), nullable=True)
 
  
+
+	@classmethod
+	def count_by_status(cls, reservation_ids):
+		"""Number of incident reports per status for the given reservations."""
+		if not reservation_ids:
+			return {}
+		rows = (
+			db.session.query(cls.status, db.func.count(cls.id))
+			.filter(cls.reservation_id.in_(reservation_ids))
+			.group_by(cls.status)
+			.all()
+		)
+		return dict(rows)
