@@ -1,6 +1,7 @@
 // Reserve page (SRS REQ.3.1, SDS Screen #4 with Figma Option B): drag a time on the
-// availability chart, pick a lot, pick a spot, confirm. Styling lives in the templates;
-// this file only toggles attributes and swaps in HTML the server renders.
+// availability chart, pick a lot, pick a spot, confirm. The toolbar searches and sorts
+// the lots, and Quick Find suggests a spot (SRS Feature 5). Styling lives in the
+// templates; this file only toggles attributes and swaps in HTML the server renders.
 (() => {
 	const $ = (selector, root = document) => root.querySelector(selector);
 	const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -12,17 +13,27 @@
 	const lotsHolder = $('[data-lots]', page);
 	const lotSelect = $('[data-chart-lot]', page);
 	const rangeLabel = $('[data-range-label]', page);
+	const searchInput = $('[data-search]', page);
+	const sortSelect = $('[data-sort]', page);
+	const accessibleBox = $('[data-accessible]', page); // only rendered for users who need an accessible spot
 	const dialog = $('[data-reserve-dialog]');
 	const dialogBody = $('[data-dialog-body]', dialog);
 	const baseUrl = page.dataset.baseUrl;
 
 	const state = {
-		start: page.dataset.start, // 'YYYY-MM-DDTHH:MM', Puerto Rico time
+		start: page.dataset.start, // the time picked on the chart, 'YYYY-MM-DDTHH:MM', Puerto Rico time
 		end: page.dataset.end,
 		lotId: null, // the lot being reserved in the dialog
 		spotId: null,
+		dialogStart: null, // the time being reserved in the dialog: the chart's, or Quick Find's
+		dialogEnd: null,
 		reserved: false, // refresh the chart and lots when the dialog closes
+		holding: false, // a Quick Find suggestion is held; release it if the dialog closes without reserving
 	};
+
+	function accessibleOnly() {
+		return accessibleBox?.checked ? '1' : '';
+	}
 
 	// When a session expires, the server answers fetches with a redirect to the login page.
 	function followLoginRedirect(response) {
@@ -113,7 +124,9 @@
 		const request = ++chartRequest;
 		chartHolder.setAttribute('aria-busy', 'true');
 		try {
-			const html = await fetchHtml(withParams(page.dataset.chartUrl, { lot: lotSelect.value }));
+			const html = await fetchHtml(withParams(page.dataset.chartUrl, {
+				lot: lotSelect.value, accessible: accessibleOnly(),
+			}));
 			if (html === null || request !== chartRequest) return;
 			chartHolder.innerHTML = html;
 			showSelection();
@@ -131,7 +144,12 @@
 		lotsHolder.setAttribute('aria-busy', 'true');
 		try {
 			const html = await fetchHtml(withParams(page.dataset.lotsUrl, {
-				start: state.start, end: state.end, lot: lotSelect.value,
+				start: state.start,
+				end: state.end,
+				lot: lotSelect.value,
+				q: searchInput.value.trim(),
+				sort: sortSelect.value,
+				accessible: accessibleOnly(),
 			}));
 			if (html === null || request !== lotsRequest) return;
 			lotsHolder.innerHTML = html;
@@ -155,6 +173,18 @@
 		loadLots();
 	});
 
+	// ------------------------------------------------------------------ Search (REQ.5.2)
+	let searchTimer = null;
+	searchInput.addEventListener('input', () => {
+		clearTimeout(searchTimer);
+		searchTimer = setTimeout(loadLots, 250);
+	});
+	sortSelect.addEventListener('change', loadLots);
+	accessibleBox?.addEventListener('change', () => {
+		loadChart();
+		loadLots();
+	});
+
 	lotsHolder.addEventListener('click', (event) => {
 		const reserveButton = event.target.closest('[data-reserve]');
 		if (reserveButton) {
@@ -162,6 +192,8 @@
 			openReserveDialog(reserveButton.dataset.lotId);
 			return;
 		}
+		// Opening a card's "Ver espacios por tipo" shouldn't also filter the chart.
+		if (event.target.closest('[data-lot-details]')) return;
 		const card = event.target.closest('[data-lot-card]');
 		if (card && !card.querySelector('[data-reserve]')?.disabled) showLotInChart(card.dataset.lotId);
 	});
@@ -191,12 +223,14 @@
 	function openReserveDialog(lotId) {
 		state.lotId = lotId;
 		state.spotId = null;
+		state.dialogStart = state.start;
+		state.dialogEnd = state.end;
 		showChooseSpot();
 	}
 
 	function showChooseSpot() {
 		showStep(withParams(`${baseUrl}lots/${state.lotId}/spots`, {
-			start: state.start, end: state.end, spot: state.spotId,
+			start: state.dialogStart, end: state.dialogEnd, spot: state.spotId, accessible: accessibleOnly(),
 		})).then(() => {
 			const selected = $('[data-spot-tile][data-selected]', dialogBody);
 			if (selected) pickSpot(selected);
@@ -225,9 +259,95 @@
 		if (target.closest('[data-close-dialog]')) dialog.close();
 		else if (target.closest('[data-floor-tab]')) showFloor(target.closest('[data-floor-tab]'));
 		else if (target.closest('[data-spot-tile]:not([disabled])')) pickSpot(target.closest('[data-spot-tile]'));
-		else if (target.closest('[data-continue]:not([disabled])')) {
-			showStep(withParams(`${baseUrl}spots/${state.spotId}/confirm`, { start: state.start, end: state.end }));
-		} else if (target.closest('[data-change-spot]')) showChooseSpot();
+		else if (target.closest('[data-continue]:not([disabled])')) showConfirm();
+		else if (target.closest('[data-change-spot]')) showChooseSpot();
+		else if (target.closest('[data-quick-find-reserve]')) reserveSuggestion(target.closest('[data-quick-find-form]'));
+	});
+
+	function showConfirm() {
+		showStep(withParams(`${baseUrl}spots/${state.spotId}/confirm`, {
+			start: state.dialogStart, end: state.dialogEnd,
+		}));
+	}
+
+	// ------------------------------------------------------------------ Quick Find (REQ.5.1)
+	// The dialog (Figma "4 · Quick Find") shows its best match right away, so opening it is a search.
+	function csrfBody() {
+		const body = new FormData();
+		body.set('csrf_token', page.dataset.csrf);
+		return body;
+	}
+
+	$('[data-quick-find]', page).addEventListener('click', () => postQuickFind(page.dataset.quickFindUrl, csrfBody()));
+
+	// "Búsqueda rápida en este horario": the same dialog, with the chart's time and lot.
+	$('[data-quick-find-range]', page).addEventListener('click', () => {
+		const body = csrfBody();
+		body.set('start_time', state.start);
+		body.set('end_time', state.end);
+		// Quick Find only offers active lots, so an inactive one picked on the chart is left out.
+		if (lotSelect.selectedOptions[0]?.hasAttribute('data-active')) body.set('lot', lotSelect.value);
+		postQuickFind(page.dataset.quickFindUrl, body);
+	});
+
+	async function postQuickFind(url, body) {
+		try {
+			const response = await fetch(url, { method: 'POST', body, headers: { Accept: 'text/html' } });
+			if (followLoginRedirect(response)) return;
+			if (response.status >= 500) throw new Error(`HTTP ${response.status}`);
+			dialogBody.innerHTML = await response.text(); // the result, or the form with its error (422)
+			state.holding = Boolean($('[data-quick-find-form][data-spot-id]', dialogBody));
+			if (!dialog.open) dialog.showModal();
+			($('[data-quick-find-reserve]', dialogBody) || $('[data-close-dialog]:not([aria-label])', dialogBody))?.focus();
+		} catch (error) {
+			showDialogError('No se pudo hacer la búsqueda rápida. Inténtalo de nuevo en un momento.');
+			if (!dialog.open) dialog.showModal();
+		}
+	}
+
+	// Reservar on the suggestion goes straight to "¡Reservación confirmada!" (Figma), through the usual create route.
+	async function reserveSuggestion(form) {
+		const button = $('[data-quick-find-reserve]', form);
+		const errorBox = $('[data-quick-find-error]', form);
+		const body = csrfBody();
+		body.set('spot_id', form.dataset.spotId);
+		body.set('start_time', form.dataset.start);
+		body.set('end_time', form.dataset.end);
+		button.disabled = true;
+		errorBox.hidden = true;
+		try {
+			const response = await fetch(`${baseUrl}`, { method: 'POST', body, headers: { Accept: 'application/json' } });
+			if (followLoginRedirect(response)) return;
+			const data = await response.json().catch(() => ({}));
+			if (response.status === 201) {
+				state.reserved = true;
+				state.holding = false; // reserving ends the user's Quick Find hold
+				dialogBody.innerHTML = data.html;
+				$('button', dialogBody)?.focus();
+				return;
+			}
+			$('[data-quick-find-error-text]', errorBox).textContent =
+				data.message || 'No se pudo guardar la reservación. Inténtalo de nuevo en un momento.';
+		} catch (error) {
+			$('[data-quick-find-error-text]', errorBox).textContent = 'No se pudo conectar con el servidor. Inténtalo de nuevo.';
+		}
+		errorBox.hidden = false;
+		button.disabled = false;
+	}
+
+	dialogBody.addEventListener('submit', (event) => {
+		const form = event.target.closest('[data-quick-find-form]');
+		if (!form) return;
+		event.preventDefault();
+		postQuickFind(form.action, new FormData(form));
+	});
+
+	// Changing the duration or lot is a new search, so the spots shown so far no longer count.
+	dialogBody.addEventListener('change', (event) => {
+		if (!event.target.matches('[data-quick-find-field]')) return;
+		const form = event.target.closest('[data-quick-find-form]');
+		form.elements.skip.value = '';
+		postQuickFind(form.action, new FormData(form));
 	});
 
 	dialogBody.addEventListener('submit', async (event) => {
@@ -248,6 +368,7 @@
 			const data = await response.json().catch(() => ({}));
 			if (response.status === 201) {
 				state.reserved = true;
+				state.holding = false; // reserving ends the user's Quick Find hold
 				dialogBody.innerHTML = data.html;
 				$('button', dialogBody)?.focus();
 				return;
@@ -273,6 +394,13 @@
 
 	dialog.addEventListener('close', () => {
 		dialogBody.innerHTML = '';
+		if (state.holding) {
+			// Free the suggested spot for others now instead of waiting for the hold to expire.
+			state.holding = false;
+			const body = new FormData();
+			body.set('csrf_token', page.dataset.csrf);
+			fetch(page.dataset.releaseUrl, { method: 'POST', body, keepalive: true }).catch(() => {});
+		}
 		if (state.reserved) {
 			state.reserved = false;
 			loadChart();

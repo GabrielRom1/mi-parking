@@ -10,6 +10,7 @@
 <div data-reserve-page
 	data-start="{{ start.isoformat(timespec='minutes') if start else '' }}" data-end="{{ end.isoformat(timespec='minutes') if end else '' }}"
 	data-base-url="{{ url_for('reservations.index') }}" data-chart-url="{{ url_for('reservations.chart') }}" data-lots-url="{{ url_for('reservations.lots') }}"
+	data-quick-find-url="{{ url_for('reservations.quick_find_result') }}" data-release-url="{{ url_for('reservations.quick_find_release') }}" data-csrf="{{ csrf }}"
 	class="flex flex-col gap-6">
 
 	<div class="flex flex-col gap-1.5">
@@ -17,20 +18,28 @@
 		<p class="text-ink/70">Reserva hasta {{ config.RESERVATION_WINDOW_HOURS }} horas antes. Arrastra sobre la gráfica para escoger un horario y luego reserva un lote.{% if role_name %} Solo ves los lotes abiertos para {{ role_name }}.{% endif %}</p>
 	</div>
 
-	{# TODO REQ.5.1/5.2: search, sort, the accessible filter and Quick Find are only drawn for now. #}
-	<div class="flex flex-wrap items-center gap-3">
+	{# Spot search (SRS REQ.5.2): filters and sorts the lot list for the time picked on the chart. #}
+	<div class="flex flex-wrap items-center gap-3" role="search">
 		<label class="relative w-full sm:w-[360px]">
 			<span class="sr-only">Buscar lotes</span>
 			<span class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink/50">{{ icon('search') }}</span>
-			<input type="search" placeholder="Buscar lotes por nombre o ubicación…" class="{{ control_class }} w-full pr-3 pl-9 outline-none placeholder:text-ink/45 focus:border-brand focus:ring-4 focus:ring-brand/15">
+			<input type="search" data-search maxlength="100" autocomplete="off" placeholder="Buscar lotes por nombre o ubicación…" class="{{ control_class }} w-full pr-3 pl-9 outline-none placeholder:text-ink/45 focus:border-brand focus:ring-4 focus:ring-brand/15">
 		</label>
-		<button type="button" class="{{ control_class }} inline-flex items-center gap-2 px-3.5 hover:bg-gray-50">
-			{{ icon('arrow-up-down') }}Orden: Más disponibles{{ icon('chevron-down', 'size-4 text-ink/60') }}
-		</button>
-		<label class="{{ control_class }} inline-flex cursor-pointer items-center gap-2 px-3.5 hover:bg-gray-50">
-			<input type="checkbox" class="size-4 accent-brand">Solo espacios accesibles
+		<label class="relative">
+			<span class="sr-only">Ordenar lotes</span>
+			<span class="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2">{{ icon('arrow-up-down') }}</span>
+			<select data-sort class="{{ control_class }} cursor-pointer appearance-none pr-10 pl-10 outline-none hover:bg-gray-50 focus:border-brand focus:ring-4 focus:ring-brand/15">
+				{% for value, label in sort_choices %}<option value="{{ value }}">Orden: {{ label }}</option>{% endfor %}
+			</select>
+			<span class="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-ink/60">{{ icon('chevron-down') }}</span>
 		</label>
-		<button type="button" class="ml-auto inline-flex h-11 items-center gap-2 rounded-lg bg-brand px-5 font-semibold text-white transition hover:bg-[#c8002c] max-sm:w-full max-sm:justify-center">
+		{# Only offered to users whose profile says they need an accessible spot (SRS REQ.5.2). #}
+		{% if accessible_filter %}
+			<label class="{{ control_class }} inline-flex cursor-pointer items-center gap-2 px-3.5 hover:bg-gray-50">
+				<input type="checkbox" data-accessible class="size-4 accent-brand">Solo espacios accesibles
+			</label>
+		{% endif %}
+		<button type="button" data-quick-find class="ml-auto inline-flex h-11 cursor-pointer items-center gap-2 rounded-lg bg-brand px-5 font-semibold text-white transition hover:bg-[#c8002c] max-sm:w-full max-sm:justify-center">
 			{{ icon('zap') }}Búsqueda rápida
 		</button>
 	</div>
@@ -44,7 +53,7 @@
 					<span class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2">{{ icon('layers') }}</span>
 					<select data-chart-lot class="h-10 max-w-[220px] cursor-pointer appearance-none truncate rounded-lg border border-gray-300 bg-white pr-9 pl-9 font-semibold outline-none focus:border-brand focus:ring-4 focus:ring-brand/15">
 						<option value="">Todos los lotes</option>
-						{% for lot in all_lots %}<option value="{{ lot.id }}">{{ lot.name }}</option>{% endfor %}
+						{% for lot in all_lots %}<option value="{{ lot.id }}" {% if lot.is_active %}data-active{% endif %}>{{ lot.name }}</option>{% endfor %}
 					</select>
 					<span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-ink/60">{{ icon('chevron-down') }}</span>
 				</label>
@@ -67,8 +76,7 @@
 				</div>
 			</div>
 
-			{# TODO REQ.5.1: Quick Find in the selected time. #}
-			<button type="button" class="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white font-semibold hover:bg-gray-50">
+			<button type="button" data-quick-find-range class="mt-4 inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white font-semibold hover:bg-gray-50">
 				{{ icon('zap') }}Búsqueda rápida en este horario
 			</button>
 		</section>

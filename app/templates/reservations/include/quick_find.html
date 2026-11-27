@@ -1,0 +1,84 @@
+{# Quick Find (SRS REQ.5.1, Figma "4 · Quick Find"): duration and an optional lot on top,
+	the best match (held for a few minutes) or "No hay espacios disponibles" below.
+	reservations.js posts this form when the dialog opens and whenever a field changes. #}
+{% from 'reservations/include/icons.html' import icon %}
+{% from 'reservations/include/dialog.html' import close_button, primary_button, secondary_button %}
+{% set select_class = "h-11 w-full cursor-pointer appearance-none rounded-lg border border-gray-300 bg-white pr-10 pl-3 outline-none focus:border-brand focus:ring-4 focus:ring-brand/15" %}
+{% set label_class = "text-[13px] font-semibold" %}
+
+<form data-quick-find-form action="{{ url_for('reservations.quick_find_result') }}" method="post" class="flex flex-col gap-4 p-5 sm:p-7" data-step="quick-find"
+	{% if spot %}data-spot-id="{{ spot.id }}" data-start="{{ start.isoformat(timespec='minutes') }}" data-end="{{ end.isoformat(timespec='minutes') }}"{% endif %}>
+	{{ form.csrf_token }}
+	{% if chart_range %}
+		<input type="hidden" name="start_time" value="{{ start.isoformat(timespec='minutes') }}">
+		<input type="hidden" name="end_time" value="{{ end.isoformat(timespec='minutes') }}">
+		<input type="hidden" name="duration" value="{{ form.duration.data or '' }}">
+	{% endif %}
+	<input type="hidden" name="skip" value="{{ skip }}">
+
+	<div class="flex items-start justify-between gap-4">
+		<div class="flex items-start gap-3">
+			<span class="grid size-10 shrink-0 place-items-center rounded-full bg-[#fdeef0] text-brand">{{ icon('zap', 'size-5') }}</span>
+			<div>
+				<h2 class="font-['Barlow_Semi_Condensed',sans-serif] text-[26px] leading-8 font-semibold">Búsqueda rápida</h2>
+				<p class="text-[14px] text-ink/70">Te buscamos el mejor espacio disponible ahora mismo.</p>
+			</div>
+		</div>
+		{{ close_button() }}
+	</div>
+
+	<div class="grid gap-3 sm:grid-cols-2">
+		<div class="flex flex-col gap-1.5">
+			{% if chart_range %}
+				{# "Búsqueda rápida en este horario": the time comes from the chart instead of a duration. #}
+				<span class="{{ label_class }}">Horario</span>
+				<p class="flex h-11 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-ink/80">{{ start | fecha_corta }} · {{ start | hora }} – {{ end | hora }}</p>
+			{% else %}
+				<label for="{{ form.duration.id }}" class="{{ label_class }}">Duración *</label>
+				<div class="relative">
+					{{ form.duration(class_=select_class, **{'data-quick-find-field': ''}) }}
+					<span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-ink/60">{{ icon('chevron-down') }}</span>
+				</div>
+			{% endif %}
+		</div>
+		<div class="flex flex-col gap-1.5">
+			<label for="{{ form.lot.id }}" class="{{ label_class }}">Lote (opcional)</label>
+			<div class="relative">
+				{{ form.lot(class_=select_class, **{'data-quick-find-field': ''}) }}
+				<span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-ink/60">{{ icon('chevron-down') }}</span>
+			</div>
+		</div>
+	</div>
+
+	{% if error %}
+		<p role="alert" class="flex items-start gap-2 rounded-lg border border-[#b00020] bg-[#fff0f2] px-3 py-3 font-semibold text-[#b00020]">{{ icon('alert-circle', 'size-5 mt-px') }}<span>{{ error }}</span></p>
+	{% elif spot %}
+		<div class="flex flex-col gap-1.5 rounded-xl border border-brand bg-[#fdeef0] px-4 py-3.5" aria-live="polite">
+			<p class="text-[11px] leading-4 font-bold tracking-[0.06em] text-brand uppercase">Mejor opción</p>
+			<p class="text-[17px] font-semibold">{{ lot.name }}</p>
+			<p class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink/70">
+				<span class="flex items-center gap-1.5">{{ icon('car', 'size-3.5') }}Espacio {{ label }} · Piso {{ floor }}{% if spot.is_accessible %} · accesible{% endif %}</span>
+				<span class="flex items-center gap-1.5">{{ icon('clock', 'size-3.5') }}{% if starts_now %}Ahora{% else %}{{ start | fecha_corta }} · {{ start | hora }}{% endif %} – {{ end | hora }}</span>
+				<span class="flex min-w-0 items-center gap-1.5">{{ icon('map-pin', 'size-3.5') }}<span class="truncate">{{ lot.location }}</span></span>
+			</p>
+			<p class="flex items-center gap-1.5 text-[13px] font-semibold text-brand">{{ icon('alert-circle', 'size-3.5') }}Te apartamos este espacio por {{ config.QUICK_FIND_HOLD_MINUTES }} minutos.</p>
+		</div>
+		<p data-quick-find-error hidden role="alert" class="flex items-start gap-2 rounded-lg border border-[#b00020] bg-[#fff0f2] px-3 py-3 font-semibold text-[#b00020]">{{ icon('alert-circle', 'size-5 mt-px') }}<span data-quick-find-error-text></span></p>
+	{% else %}
+		<div class="flex flex-col items-center gap-1 rounded-xl bg-gray-100 px-5 py-6 text-center">
+			<span class="text-ink/50">{{ icon('car', 'size-6') }}</span>
+			<p class="font-semibold">No hay espacios disponibles</p>
+			<p class="text-[13px] text-ink/70">Prueba una duración más corta, otro lote o un horario más tarde en la gráfica de disponibilidad.</p>
+		</div>
+	{% endif %}
+
+	<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+		{% if spot %}
+			<button type="submit" class="{{ secondary_button }}">Buscar otro</button>
+			{# Reserving from Quick Find goes straight to "¡Reservación confirmada!" (Figma). #}
+			<button type="button" data-quick-find-reserve class="{{ primary_button }}">{{ icon('circle-check') }}Reservar</button>
+		{% else %}
+			<button type="button" data-close-dialog class="{{ primary_button }}">Cerrar</button>
+		{% endif %}
+	</div>
+</form>
