@@ -1,5 +1,5 @@
-{# Admins see the page under the admin header and everyone else under the user header. #}
-{% extends 'admin/layout.html' if user.is_admin else 'reservations/layout.html' %}
+{# Admins see the page in the admin layout, unless they're viewing as a user. #}
+{% extends 'admin/layout.html' if user.is_admin and not viewing_as_user(user) else 'reservations/layout.html' %}
 {% from 'include/icons.html' import icon as profile_icon %}
 
 {% set role_names = {'estudiante': 'Estudiante', 'empleado': 'Empleado', 'admin': 'Administrador'} %}
