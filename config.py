@@ -11,6 +11,7 @@ class Config:
     # Secret key for session management and CSRF protection
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     BCRYPT_HANDLE_LONG_PASSWORDS = True
+    DEBUG = os.environ.get('FLASK_DEBUG', '1').lower() in ('1', 'true')
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=30)
     SESSION_REFRESH_EACH_REQUEST = True
 
@@ -27,9 +28,20 @@ class Config:
     MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or 'MiParking <no-reply@miparking.local>'
     MAIL_BACKEND = os.environ.get('MAIL_BACKEND') or ('smtp' if MAIL_SERVER else 'console')
+    PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL') or 'http://127.0.0.1:4030'
 
     # Reservations (REQ.3.1). All times are Puerto Rico time
     RESERVATION_SLOT_MINUTES = 30
     RESERVATION_OPENING_HOUR = 7
     RESERVATION_CLOSING_HOUR = 22
     RESERVATION_WINDOW_HOURS = 48
+
+    RESERVATION_CHECK_IN_GRACE_MINUTES = int(
+        os.environ.get('RESERVATION_CHECK_IN_GRACE_MINUTES') or 15
+    )
+    RESERVATION_CHECKOUT_REMINDER_MINUTES = int(
+        os.environ.get('RESERVATION_CHECKOUT_REMINDER_MINUTES') or 15
+    )
+    RESERVATION_CHECKOUT_GRACE_MINUTES = int(
+        os.environ.get('RESERVATION_CHECKOUT_GRACE_MINUTES') or 15
+    )

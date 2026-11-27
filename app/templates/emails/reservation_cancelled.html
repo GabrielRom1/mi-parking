@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="es">
+	<body style="margin:0;background:#f5f5f6;font-family:Arial,Helvetica,sans-serif;color:#261c02;">
+		<div style="max-width:520px;margin:0 auto;padding:24px;">
+			<div style="height:4px;background:#e70033;"></div>
+			<div style="background:#ffffff;border:1px solid #dcdddf;border-top:0;padding:24px;">
+				<p style="margin:0 0 16px;font-size:24px;font-weight:bold;"><span style="color:#e70033;">Mi</span>Parking</p>
+				<p style="margin:0 0 16px;">Hola {{ user.first_name }}, tu reservación fue cancelada.</p>
+				<p style="margin:0 0 8px;"><strong>Reservación:</strong> #{{ reservation.id }}</p>
+				<p style="margin:0;"><strong>Motivo:</strong> {{ reservation.cancelation_reason }}</p>
+			</div>
+		</div>
+	</body>
+</html>

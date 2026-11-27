@@ -20,7 +20,8 @@ CREATE TABLE lots (
 	name varchar(50) NOT NULL UNIQUE,
 	location varchar(255) NOT NULL,
 	is_paid TINYINT DEFAULT 0,
-	date_to_be_deleted DATE NULL,
+	date_to_be_deleted DATETIME NULL,
+	date_to_be_deactivated DATETIME NULL,
 	is_active TINYINT DEFAULT 1,
 	parent_id int NULL,
 	accessible TINYINT DEFAULT 0,
@@ -32,7 +33,7 @@ CREATE TABLE lots (
 CREATE TABLE spots (
 	id int AUTO_INCREMENT PRIMARY KEY,
 	is_accessible TINYINT DEFAULT 0,
-	date_to_be_deleted DATE NULL,
+	date_to_be_deleted DATETIME NULL,
 	lot_id int NULL,
 	FOREIGN KEY (lot_id) REFERENCES lots(id)
 );
@@ -46,6 +47,7 @@ CREATE TABLE reservations (
 	status ENUM('Active', 'Completed', 'Cancelled') NOT NULL DEFAULT 'Active',
 	check_in_time DATETIME NULL,
 	check_out_time DATETIME NULL,
+	checkout_reminder_sent_at DATETIME NULL,
 	cancelation_reason varchar(500) NULL,
 	FOREIGN KEY (user_id) REFERENCES users(id),
 	FOREIGN KEY (spot_id) REFERENCES spots(id)

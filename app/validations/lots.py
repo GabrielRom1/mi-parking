@@ -75,9 +75,46 @@ def validate_edit_payload(payload):
             }
         )
 
+    deletion_decisions = payload.get("floor_deletion_decisions", {})
+    if not isinstance(deletion_decisions, dict):
+        return None, {
+            "floor_deletion_decisions": "Las decisiones de eliminación de pisos no son válidas."
+        }
+
+    normalized_decisions = {}
+    for floor_id, decision in deletion_decisions.items():
+        if (
+            not isinstance(floor_id, str)
+            or not floor_id.isdigit()
+            or not isinstance(decision, dict)
+        ):
+            return None, {
+                "floor_deletion_decisions": "Las decisiones de eliminación de pisos no son válidas."
+            }
+        normalized = {}
+        minimum_token = decision.get("minimum_token")
+        if minimum_token is not None:
+            if not isinstance(minimum_token, str):
+                return None, {
+                    "floor_deletion_decisions": "La verificación de eliminación del piso no es válida."
+                }
+            normalized["minimum_token"] = minimum_token
+        if decision.get("confirmed") is True:
+            normalized["confirmed"] = True
+        elif decision.get("override") is True:
+            normalized["override"] = True
+        elif isinstance(decision.get("scheduled_date"), str):
+            normalized["scheduled_date"] = decision["scheduled_date"]
+        else:
+            return None, {
+                "floor_deletion_decisions": "Selecciona cómo deseas eliminar cada piso."
+            }
+        normalized_decisions[floor_id] = normalized
+
     return {
         "name": name.strip(),
         "location": location.strip(),
         "is_paid": payload["is_paid"],
         "floors": normalized_floors,
+        "floor_deletion_decisions": normalized_decisions,
     }, None

@@ -1,0 +1,13 @@
+Hola {{ user.first_name }},
+
+El tiempo de tu reservación en MiParking expiró y no recibimos una confirmación
+de check-out dentro del periodo de gracia. Por eso, el sistema cerró tu
+reservación automáticamente y liberó el espacio.
+
+Reservación: #{{ reservation.id }}
+Hora de salida programada: {{ reservation.end_time | hora }}
+Estado: Cancelada por falta de confirmación de check-out
+
+Si crees que esto ocurrió por error, comunícate con la administración.
+
+MiParking

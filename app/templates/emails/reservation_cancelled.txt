@@ -1,0 +1,8 @@
+Hola {{ user.first_name }},
+
+Tu reservación en MiParking fue cancelada.
+
+Reservación: #{{ reservation.id }}
+Motivo: {{ reservation.cancelation_reason }}
+
+MiParking
