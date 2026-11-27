@@ -31,7 +31,7 @@ def login():
                 return redirect(url_for("lots.index"))
             else:
                 # aqui tenemos que poner la página de inicio para los users
-                return redirect(url_for('public.hello_world'))
+                return redirect(url_for('reservations.index'))
     return render_template(
         'login.html',
         form=form,
@@ -70,4 +70,4 @@ def register():
 @auth_bp.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for('auth_bp.login'))
+    return redirect(url_for('public.index'))
