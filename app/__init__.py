@@ -49,7 +49,6 @@ def create_app(config_class=Config):
     app.register_blueprint(public_bp, url_prefix="/")
     app.register_blueprint(lots_bp, url_prefix="/admin/lots")
     app.register_blueprint(reservations_bp, url_prefix="/reservations")
-    app.register_blueprint(lots_bp, url_prefix="/admin/lots")
 
     return app
 
