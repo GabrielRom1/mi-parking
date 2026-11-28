@@ -1,0 +1,296 @@
+{% extends "reservations/layout.html" %}
+{% from 'reservations/include/icons.html' import icon %}
+{% from 'reservations/include/dialog.html' import close_button, primary_button, secondary_button %}
+
+{% set active_nav = 'reservations' %}
+{% set danger_outline = "inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-brand bg-white px-4 font-semibold text-brand hover:bg-red-50" %}
+{% set danger_solid = "inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#a10024] px-4 font-semibold text-white transition hover:bg-[#87001e] disabled:cursor-not-allowed disabled:opacity-50" %}
+{% set field_class = "w-full rounded-lg border border-gray-300 bg-white px-3 outline-none placeholder:text-ink/45 focus:border-brand focus:ring-4 focus:ring-brand/15" %}
+{% set dialog_class = "m-auto w-[560px] max-w-[calc(100vw-32px)] rounded-2xl bg-white p-0 text-[15px] leading-[22px] text-ink shadow-[0_16px_48px_rgb(38_28_2/0.18)] backdrop:bg-ink/45" %}
+{% set badges = {
+	'checked_in': ('En curso',        'bg-green-50 text-green-700'),
+	'waiting':    ('Falta check-in',  'bg-amber-50 text-amber-700'),
+	'upcoming':   ('Próxima',         'bg-red-50 text-brand'),
+	'Completed':  ('Completada',      'bg-gray-100 text-ink/70'),
+	'Cancelled':  ('Cancelada',       'bg-gray-100 text-ink/70'),
+} %}
+{% set filters = [('all', 'Todas'), ('Active', 'Activas'), ('Completed', 'Completadas'), ('Cancelled', 'Canceladas')] %}
+{% set incident_types = [
+	('Spot Occupied by Unauthorized Vehicle', 'Espacio ocupado por un vehículo no autorizado'),
+	('Spot Blocked/Inaccessible', 'Espacio bloqueado o inaccesible'),
+	('Other', 'Otro'),
+] %}
+
+{# active reservations that started, plus the ones that start later today. #}
+{% set end_of_today = current.replace(hour=23, minute=59) %}
+{% set today_items = today + (upcoming | rejectattr('start_time', 'gt', end_of_today) | list) %}
+{% set upcoming_items = upcoming | selectattr('start_time', 'gt', end_of_today) | list %}
+
+{% block title %}Mis reservaciones - MiParking{% endblock %}
+
+{% macro card(r, section) %}
+	{% set area = r.spot.lot %}
+	{% set lot = area.parent or area %}
+	{% set label = spot_label(r.spot) %}
+	{% set started = r.start_time <= current %}
+	{% set checked_in = r.check_in_time is not none %}
+	{% if r.status != 'Active' %}
+		{% set state = r.status %}
+	{% elif section == 'today' %}
+		{% set state = 'checked_in' if checked_in else ('waiting' if started else 'upcoming') %}
+	{% else %}
+		{% set state = 'upcoming' %}
+	{% endif %}
+	{% set badge = badges[state] %}
+	{% set muted = r.status == 'Cancelled' %}
+	{% set highlight = section == 'today' and started %}
+	{% set base_url = url_for('reservations.calendar', reservation_id=r.id).rsplit('/', 1)[0] %}
+	{% set data = {
+		'id': r.id,
+		'lot': lot.name,
+		'spot': label,
+		'floor': (label.split('-')[0] if area.parent else none),
+		'date': r.start_time | fecha,
+		'start': r.start_time | hora,
+		'end': r.end_time | hora,
+		'end_time': r.end_time.strftime('%H:%M'),
+		'urls': {
+			'cancel': url_for('reservations.cancel', reservation_id=r.id),
+			'check_out': url_for('reservations.check_out', reservation_id=r.id),
+			'check_in': base_url ~ '/check-in',
+			'extend': base_url ~ '/extend',
+			'incident': base_url ~ '/incident',
+		},
+	} %}
+	<article data-reservation data-status="{{ r.status }}" data-info="{{ data | tojson | forceescape }}"
+		data-search="{{ (lot.name ~ ' ' ~ lot.location ~ ' ' ~ label ~ ' ' ~ (r.start_time | fecha)) | lower }}"
+		class="flex flex-col gap-4 rounded-xl border bg-white px-4 py-4 sm:flex-row sm:items-center sm:px-5 {{ 'border-brand ring-1 ring-brand' if highlight else 'border-gray-200' }}">
+
+		<div class="flex min-w-0 flex-1 items-center gap-4">
+			<div class="grid w-14 shrink-0 place-items-center rounded-lg py-1.5 {{ 'bg-red-50 text-brand' if highlight else 'bg-[#f1efea]' }} {{ 'text-ink/60' if muted }}">
+				<span class="text-[11px] font-bold tracking-wide uppercase">{{ (r.start_time | fecha_corta)[:3] }}</span>
+				<span class="font-['Barlow_Semi_Condensed',sans-serif] text-[26px] leading-7 font-semibold">{{ r.start_time.day }}</span>
+			</div>
+
+			<div class="min-w-0">
+				<div class="flex flex-wrap items-center gap-2">
+					<h3 class="font-semibold {{ 'text-ink/70' if muted }}">{{ lot.name }}</h3>
+					<span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[13px] font-semibold {{ badge[1] }}">
+						<span class="size-1.5 rounded-full bg-current"></span>{{ badge[0] }}
+					</span>
+				</div>
+				<p class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-ink/70">
+					<span class="inline-flex items-center gap-1.5">{{ icon('clock', 'size-3.5') }}{{ r.start_time | hora }} – {{ r.end_time | hora }}</span>
+					<span class="inline-flex items-center gap-1.5">{{ icon('car', 'size-3.5') }}Espacio {{ label }}{% if area.parent %} · Piso {{ label.split('-')[0] }}{% endif %}</span>
+					<span class="inline-flex items-center gap-1.5">{{ icon('map-pin', 'size-3.5') }}{{ lot.location }}</span>
+				</p>
+			</div>
+		</div>
+
+		<div class="flex flex-wrap gap-2 sm:justify-end">
+			{% if state == 'checked_in' %}
+				<button type="button" data-open="incident" class="{{ secondary_button }}">{{ icon('triangle-alert') }}Reportar incidente</button>
+				<button type="button" data-open="checkout" class="{{ primary_button }}">{{ icon('log-out') }}Check out</button>
+			{% elif state == 'waiting' %}
+				<button type="button" data-open="incident" class="{{ secondary_button }}">{{ icon('triangle-alert') }}Reportar incidente</button>
+				<button type="button" data-open="cancel" class="{{ danger_outline }}">{{ icon('x') }}Cancelar</button>
+				<button type="button" data-check-in class="{{ primary_button }}">{{ icon('log-in') }}Check-in</button>
+			{% elif state == 'upcoming' %}
+				<a href="{{ url_for('reservations.calendar', reservation_id=r.id) }}" class="{{ secondary_button }}">{{ icon('calendar-plus') }}Añadir al calendario</a>
+				<button type="button" data-open="cancel" class="{{ danger_outline }}">{{ icon('x') }}Cancelar</button>
+				{% if section == 'today' %}
+					<button type="button" disabled title="Disponible desde las {{ r.start_time | hora }}" class="{{ primary_button }}">{{ icon('log-in') }}Check-in</button>
+				{% endif %}
+			{% elif r.status == 'Completed' and r.check_out_time %}
+				<p class="text-right text-[13px] text-ink/60">Salida registrada<span class="block text-[15px] font-semibold text-ink">{{ r.check_out_time | hora }}</span></p>
+			{% elif r.status == 'Cancelled' %}
+				<p class="text-right text-[13px] text-ink/60">Cancelada<span class="block text-[15px] font-semibold text-ink/70">{{ r.start_time | fecha_corta }}</span></p>
+			{% endif %}
+		</div>
+	</article>
+{% endmacro %}
+
+{% macro dialog_header(kind, title_attr='data-title') %}
+	<div class="flex items-start gap-4">
+		{% if kind == 'danger' %}
+			<span class="grid size-11 shrink-0 place-items-center rounded-full bg-red-50 text-brand">{{ icon('triangle-alert', 'size-5') }}</span>
+		{% elif kind == 'action' %}
+			<span class="grid size-11 shrink-0 place-items-center rounded-full bg-red-50 text-brand">{{ icon('log-out', 'size-5') }}</span>
+		{% elif kind == 'success' %}
+			<span class="grid size-11 shrink-0 place-items-center rounded-full bg-green-50 text-green-700">{{ icon('circle-check', 'size-5') }}</span>
+		{% endif %}
+		<div class="min-w-0 flex-1">
+			<h2 {{ title_attr }} class="font-['Barlow_Semi_Condensed',sans-serif] text-[26px] leading-8 font-semibold"></h2>
+			<p data-subtitle class="mt-1 text-ink/70"></p>
+		</div>
+		{{ close_button() }}
+	</div>
+{% endmacro %}
+
+{% macro details_box() %}
+	<dl data-details class="grid grid-cols-[96px_1fr] gap-x-4 gap-y-3 rounded-xl bg-[#f3f2ef] px-5 py-4 sm:grid-cols-[140px_1fr]"></dl>
+{% endmacro %}
+
+{% macro error_box() %}
+	<p data-error role="alert" hidden class="rounded-lg bg-red-50 px-3 py-2 font-semibold text-brand"></p>
+{% endmacro %}
+
+{% set csrf %}<input type="hidden" name="csrf_token" value="{{ form.csrf_token.current_token }}">{% endset %}
+
+{% block content %}
+<div data-my-reservations class="flex flex-col gap-6">
+	<div class="flex flex-col gap-1.5">
+		<h1 class="font-['Barlow_Semi_Condensed',sans-serif] text-[36px] leading-10 font-semibold">Mis reservaciones</h1>
+		<p class="text-ink/70">Reservaciones próximas, en curso y pasadas. Haz check out temprano para liberar tu espacio.</p>
+	</div>
+
+	<p data-page-error role="alert" hidden class="rounded-lg border border-brand/30 bg-red-50 px-4 py-3 font-semibold text-brand"></p>
+
+	<div class="flex flex-wrap items-center gap-3">
+		<label class="relative w-full sm:w-[340px]">
+			<span class="sr-only">Buscar reservaciones</span>
+			<span class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink/50">{{ icon('search') }}</span>
+			<input type="search" data-search placeholder="Buscar por lote, fecha o espacio…"
+				class="h-11 w-full rounded-lg border border-gray-300 bg-white pr-3 pl-9 outline-none placeholder:text-ink/45 focus:border-brand focus:ring-4 focus:ring-brand/15">
+		</label>
+		<div role="radiogroup" aria-label="Filtrar por estado" class="inline-flex rounded-lg bg-gray-200/70 p-1">
+			{% for value, label in filters %}
+				<button type="button" role="radio" data-filter="{{ value }}" aria-checked="{{ 'true' if loop.first else 'false' }}"
+					class="h-9 cursor-pointer rounded-md px-3.5 text-ink/70 aria-checked:bg-white aria-checked:font-semibold aria-checked:text-ink aria-checked:shadow-sm">{{ label }}</button>
+			{% endfor %}
+		</div>
+	</div>
+
+	{% for key, title, items in [('today', 'Hoy', today_items), ('upcoming', 'Próximas', upcoming_items), ('past', 'Pasadas', past)] if items %}
+		<section data-section class="flex flex-col gap-2.5" aria-labelledby="section-{{ key }}">
+			<h2 id="section-{{ key }}" class="text-[12px] font-bold tracking-wider text-ink/60 uppercase">{{ title }}</h2>
+			{% for r in items %}{{ card(r, key) }}{% endfor %}
+		</section>
+	{% else %}
+		<p class="rounded-xl border border-dashed border-gray-300 bg-white px-5 py-10 text-center text-ink/70">
+			Aún no tienes reservaciones. <a href="{{ url_for('reservations.index') }}" class="font-semibold text-brand hover:underline">Reserva un espacio</a>
+		</p>
+	{% endfor %}
+
+	<p data-no-results hidden class="rounded-xl border border-dashed border-gray-300 bg-white px-5 py-10 text-center text-ink/70">Ninguna reservación coincide con tu búsqueda.</p>
+</div>
+
+{# cancel #}
+<dialog data-dialog="cancel" class="{{ dialog_class }}">
+	<form data-form class="flex flex-col gap-5 p-6 font-['Source_Sans_3',system-ui,sans-serif]">
+		{{ csrf }}
+		{{ dialog_header('danger') }}
+		{{ details_box() }}
+		<label class="flex flex-col gap-1.5">
+			<span class="font-semibold">Razón <span class="font-normal text-ink/60">(opcional)</span></span>
+			<textarea name="reason" maxlength="500" rows="3" placeholder="Ej. Me cancelaron la clase" class="{{ field_class }} py-2"></textarea>
+		</label>
+		{{ error_box() }}
+		<div class="flex flex-wrap justify-end gap-2">
+			<button type="button" data-close-dialog class="{{ secondary_button }}">Conservar reservación</button>
+			<button type="submit" data-submit class="{{ danger_solid }}">{{ icon('x') }}Cancelar reservación</button>
+		</div>
+	</form>
+</dialog>
+
+{# Check out #}
+<dialog data-dialog="checkout" class="{{ dialog_class }}">
+	<form data-form class="flex flex-col gap-5 p-6 font-['Source_Sans_3',system-ui,sans-serif]">
+		{{ csrf }}
+		{{ dialog_header('action') }}
+		{{ details_box() }}
+		<div class="flex flex-col gap-3 rounded-xl border border-gray-200 p-4">
+			<div>
+				<p class="font-semibold">¿Necesitas más tiempo?</p>
+				<p data-extend-hint class="mt-0.5 text-[13px] text-ink/70"></p>
+			</div>
+			<label class="flex flex-col gap-1.5">
+				<span class="text-[13px] font-semibold">Nueva hora de salida</span>
+				<span class="flex gap-2">
+					<select name="end_time" data-extend-select class="{{ field_class }} h-10 flex-1"></select>
+					<button type="button" data-extend class="{{ secondary_button }}">{{ icon('clock') }}Extender</button>
+				</span>
+			</label>
+		</div>
+		{{ error_box() }}
+		<div class="flex flex-wrap justify-end gap-2">
+			<button type="button" data-close-dialog class="{{ secondary_button }}">Ahora no</button>
+			<button type="submit" data-submit class="{{ primary_button }}">{{ icon('log-out') }}Hacer check out</button>
+		</div>
+	</form>
+</dialog>
+
+{# report incident #}
+<dialog data-dialog="incident" class="{{ dialog_class }}">
+	<form data-form enctype="multipart/form-data" novalidate class="flex flex-col gap-5 p-6 font-['Source_Sans_3',system-ui,sans-serif]">
+		{{ csrf }}
+		<div class="flex items-start gap-4">
+			<div class="min-w-0 flex-1">
+				<h2 class="font-['Barlow_Semi_Condensed',sans-serif] text-[26px] leading-8 font-semibold">Reportar un incidente</h2>
+				<p data-subtitle class="mt-1 text-ink/70"></p>
+			</div>
+			{{ close_button() }}
+		</div>
+
+		<label class="flex flex-col gap-1.5">
+			<span class="font-semibold">Tipo de incidente *</span>
+			<select name="incident_type" required class="{{ field_class }} h-11">
+				{% for value, text in incident_types %}<option value="{{ value }}">{{ text }}</option>{% endfor %}
+			</select>
+		</label>
+
+		<label class="flex flex-col gap-1.5">
+			<span class="font-semibold">Descripción</span>
+			<textarea name="description" maxlength="500" rows="3" placeholder="Cuéntanos qué pasó…" aria-describedby="incident-description-hint" class="{{ field_class }} py-2"></textarea>
+			<span id="incident-description-hint" class="text-[13px] text-ink/60">Requerida si el tipo es “Otro” o si no añades una foto.</span>
+		</label>
+
+		<div class="flex flex-col gap-1.5">
+			<span class="font-semibold">Foto <span class="font-normal text-ink/60">(opcional)</span></span>
+			<label data-dropzone class="flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed border-gray-300 bg-[#f3f2ef] px-4 py-6 text-center transition hover:border-brand/50 has-[:focus-visible]:border-brand">
+				<input type="file" name="photo" accept="image/jpeg,image/png" data-photo class="sr-only">
+				<svg class="size-5 text-ink/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
+				<span data-photo-label class="font-semibold">Haz clic para subir o arrastra una foto aquí</span>
+				<span class="text-[13px] text-ink/60">JPG o PNG, hasta 5 MB</span>
+			</label>
+		</div>
+
+		{{ error_box() }}
+		<div class="flex flex-wrap justify-end gap-2">
+			<button type="button" data-close-dialog class="{{ secondary_button }}">Cancelar</button>
+			<button type="submit" data-submit class="{{ primary_button }}">{{ icon('circle-check') }}Enviar reporte</button>
+		</div>
+	</form>
+</dialog>
+
+{# Incident submitted #}
+<dialog data-dialog="incident-result" class="{{ dialog_class }}">
+	<form data-form class="flex flex-col gap-5 p-6 font-['Source_Sans_3',system-ui,sans-serif]">
+		{{ csrf }}
+		{{ dialog_header('success') }}
+
+		<div data-replacement hidden class="rounded-xl border-2 border-brand bg-red-50/60 px-5 py-4">
+			<p class="text-[12px] font-bold tracking-wider text-brand uppercase">Espacio de reemplazo</p>
+			<p data-replacement-title class="mt-1 font-['Barlow_Semi_Condensed',sans-serif] text-[22px] leading-7 font-semibold"></p>
+			<p data-replacement-detail class="mt-0.5 text-ink/70"></p>
+		</div>
+		<p data-replacement-note hidden class="text-[13px] text-ink/60">Si aceptas, tu reservación original se cierra y se crea una nueva. Te llegará un correo de confirmación. Si no aceptas, tu reporte igual le llega a administración.</p>
+
+		<div data-no-replacement hidden class="flex flex-col items-center gap-1 rounded-xl bg-[#f3f2ef] px-5 py-6 text-center">
+			<span class="text-ink/60">{{ icon('car', 'size-6') }}</span>
+			<p class="font-semibold">No hay espacios de reemplazo disponibles.</p>
+			<p class="text-[13px] text-ink/70">Puedes darle seguimiento a tu reporte en Mis reportes.</p>
+		</div>
+
+		{{ error_box() }}
+		<div class="flex flex-wrap justify-end gap-2">
+			<button type="button" data-close-dialog data-reload class="{{ secondary_button }}" data-label-replacement="No, gracias" data-label-none="Cerrar"></button>
+			<button type="submit" data-submit data-replacement-only class="{{ primary_button }}">{{ icon('circle-check') }}Aceptar reemplazo</button>
+			{# TODO: point to My Reports once that page exists!!! #}
+			<a href="#" data-no-replacement-only class="{{ primary_button }}">Ir a Mis reportes</a>
+		</div>
+	</form>
+</dialog>
+
+<script src="{{ url_for('static', filename='js/my_reservations.js') }}" defer></script>
+{% endblock %}

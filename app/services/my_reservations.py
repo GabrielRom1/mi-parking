@@ -23,7 +23,8 @@ def my_reservations(user, current=None):
     current = current or now()
     active = (
         Reservation.query
-        .filter(Reservation.user_id == user.id, Reservation.status == 'Active')
+        .filter(Reservation.user_id == user.id, Reservation.status == 'Active',
+                Reservation.spot_id.isnot(None))
         .order_by(Reservation.start_time)
         .all()
     )
@@ -32,6 +33,16 @@ def my_reservations(user, current=None):
         'upcoming': [r for r in active if r.start_time > current],
     }
 
+
+def past_reservations(user):
+    """user's completed and cancelled reservations"""
+    return (
+        Reservation.query
+        .filter(Reservation.user_id == user.id, Reservation.status != 'Active',
+                Reservation.spot_id.isnot(None))
+        .order_by(Reservation.start_time.desc())
+        .all()
+    )
 
 # REQ.3.2 Cancel
 

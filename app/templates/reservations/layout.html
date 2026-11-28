@@ -15,7 +15,7 @@
 {# My Reservations (REQ.3.2) and My Reports (REQ.4.1) don't exist yet, so those links are placeholders. #}
 {% set nav_items = [
 	('reserve', 'Reservar', url_for('reservations.index')),
-	('reservations', 'Mis reservaciones', '#'),
+	('reservations', 'Mis reservaciones', url_for('reservations.mine')),
 	('reports', 'Mis reportes', '#'),
 ] %}
 

@@ -219,6 +219,21 @@ def calendar(reservation_id):
 
 # My Reservations routes
 
+@reservations_bp.route('/mine', methods=['GET'])
+@role_required()
+def mine():
+    user = _current_user()
+    active = my_reservations.my_reservations(user)
+    return render_template(
+        'reservations/mine.html',
+        user=user,
+        today=active['current'],
+        upcoming=active['upcoming'],
+        past=my_reservations.past_reservations(user),
+        current=now(),
+        spot_label=spot_label,
+        form=CancelReservationForm(),
+    )
 
 
 @reservations_bp.route('/<int:reservation_id>/cancel', methods=['POST'])
